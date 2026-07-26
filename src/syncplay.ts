@@ -1,3 +1,4 @@
+import { LicenseValidator } from "./license-validator";
 // Copyright (c) 2024-2026 Soumya Debnath. All Rights Reserved.
 // Licensed under the Business Source License 1.1 (BSL 1.1).
 // See LICENSE file for details. Production use requires a paid license.
@@ -19,7 +20,9 @@ export class SyncPlay extends EventEmitter {
   public _playerCount: number = 1;
   public _isHost: boolean = true;
 
-  constructor(matchmakerUrl: string, options?: SyncPlayOptions) {
+  constructor(options?: any) {
+    LicenseValidator.validate(options);
+    // constructor(matchmakerUrl: string, options?: SyncPlayOptions) {
     super();
     this.matchmaker = new MatchmakerClient(matchmakerUrl);
     this.stateManager = new StateManager();
