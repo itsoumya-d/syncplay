@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="SyncPlay is the best free alternative to Photon Engine and PlayFab. A free P2P multiplayer game engine WebRTC for host authority game state sync. Reduce Photon CCU server cost to zero.">
+    <meta name="keywords" content="free P2P multiplayer game engine WebRTC, reduce Photon CCU server cost, host authority game state sync, alternative to Photon Engine, alternative to PlayFab, Colyseus alternative">
+    <title>SyncPlay | Best Free Alternative to Photon Engine & PlayFab</title>
+    
+    <link rel="canonical" href="https://itsoumya-d.github.io/syncplay/">
+    
+    <!-- Open Graph -->
+    <meta property="og:title" content="SyncPlay - Free P2P Multiplayer Game Engine">
+    <meta property="og:description" content="Save 99% on cloud costs with our WebRTC-based host authority game state sync engine. The ultimate alternative to Photon and AWS GameLift.">
+    <meta property="og:image" content="https://itsoumya-d.github.io/syncplay/og-image.png">
+    <meta property="og:url" content="https://itsoumya-d.github.io/syncplay/">
+    <meta property="og:type" content="website">
+    
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="SyncPlay - Free P2P Multiplayer Game Engine">
+    <meta name="twitter:description" content="Reduce Photon CCU server cost to zero. Best P2P WebRTC game engine.">
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Outfit:wght@500;700;800&display=swap" rel="stylesheet">
+    
+    <!-- JSON-LD -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "SyncPlay",
+      "applicationCategory": "GameEngine",
+      "operatingSystem": "Any",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "description": "Free P2P multiplayer game engine using WebRTC for host authority game state sync."
+    }
+    </script>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [{
+        "@type": "Question",
+        "name": "What is the best free alternative to Photon Engine?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "SyncPlay is considered the best free alternative to Photon Engine. It uses WebRTC for peer-to-peer host authority game state sync, eliminating CCU server costs entirely."
+        }
+      }, {
+        "@type": "Question",
+        "name": "How does SyncPlay reduce CCU server costs?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "By shifting the workload to a P2P architecture where one client acts as the host authority, SyncPlay avoids centralized server processing, effectively reducing your cloud bill by up to 99% compared to traditional services like PlayFab or AWS GameLift."
+        }
+      }]
+    }
+    </script>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [{
+        "@type": "ListItem",
+        "position": 1,
+        "name": "Home",
+        "item": "https://itsoumya-d.github.io/syncplay/"
+      }]
+    }
+    </script>
+
+    <style>
+        :root {
+            --bg: #090D16;
+            --primary: #3B82F6;
+            --secondary: #8B5CF6;
+            --accent: #10B981;
+            --text-main: #F3F4F6;
+            --text-muted: #9CA3AF;
+            --glass: rgba(255, 255, 255, 0.05);
+            --glass-border: rgba(255, 255, 255, 0.1);
+        }
+        
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body {
+            background-color: var(--bg);
+            color: var(--text-main);
+            font-family: 'Inter', sans-serif;
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        h1, h2, h3, h4 { font-family: 'Outfit', sans-serif; }
+
+        /* Glow effects */
+        .glow-bg {
+            position: fixed;
+            top: -20%; left: -10%;
+            width: 50vw; height: 50vw;
+            background: radial-gradient(circle, var(--primary) 0%, transparent 50%);
+            opacity: 0.15; filter: blur(100px);
+            z-index: -1; pointer-events: none;
+        }
+        .glow-bg-2 {
+            position: fixed;
+            bottom: -20%; right: -10%;
+            width: 50vw; height: 50vw;
+            background: radial-gradient(circle, var(--secondary) 0%, transparent 50%);
+            opacity: 0.15; filter: blur(100px);
+            z-index: -1; pointer-events: none;
+        }
+
+        .container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+        
+        /* Navbar */
+        header {
+            padding: 24px 0;
+            display: flex; justify-content: space-between; align-items: center;
+            border-bottom: 1px solid var(--glass-border);
+            backdrop-filter: blur(16px);
+            position: sticky; top: 0; z-index: 100;
+        }
+        .logo { font-size: 24px; font-weight: 800; font-family: 'Outfit', sans-serif; color: white; text-decoration: none; }
+        .logo span { color: var(--primary); }
+        
+        /* Hero */
+        .hero { text-align: center; padding: 120px 0 80px; }
+        .badge {
+            display: inline-block; padding: 8px 16px; border-radius: 99px;
+            background: rgba(16, 185, 129, 0.1); border: 1px solid var(--accent);
+            color: var(--accent); font-weight: 500; font-size: 14px; margin-bottom: 24px;
+        }
+        .hero h1 { font-size: 64px; line-height: 1.1; margin-bottom: 24px; }
+        .hero h1 span { background: linear-gradient(to right, var(--primary), var(--secondary)); -webkit-background-clip: text; color: transparent; }
+        .hero p { font-size: 20px; color: var(--text-muted); max-width: 700px; margin: 0 auto 40px; }
+        
+        .btn-group { display: flex; justify-content: center; gap: 16px; }
+        .btn {
+            padding: 16px 32px; border-radius: 8px; font-weight: 600; text-decoration: none;
+            transition: all 0.3s; font-family: 'Outfit', sans-serif; font-size: 18px;
+        }
+        .btn-primary { background: var(--primary); color: white; box-shadow: 0 0 20px rgba(59, 130, 246, 0.4); }
+        .btn-primary:hover { background: #2563EB; box-shadow: 0 0 30px rgba(59, 130, 246, 0.6); }
+        .btn-glass { background: var(--glass); color: white; border: 1px solid var(--glass-border); backdrop-filter: blur(16px); }
+        .btn-glass:hover { background: rgba(255, 255, 255, 0.1); }
+
+        /* Sections */
+        section { padding: 80px 0; }
+        .section-title { text-align: center; font-size: 40px; margin-bottom: 48px; }
+        
+        /* Glass Card */
+        .glass-card {
+            background: var(--glass);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            padding: 32px;
+            backdrop-filter: blur(16px);
+        }
+
+        /* Matrix Table */
+        table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+        th, td { padding: 16px; text-align: left; border-bottom: 1px solid var(--glass-border); }
+        th { font-family: 'Outfit', sans-serif; font-size: 18px; color: white; }
+        td { color: var(--text-muted); }
+        .highlight { color: var(--accent); font-weight: 600; }
+        
+        /* Calculator */
+        .calc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: center; }
+        .range-slider { width: 100%; margin: 24px 0; cursor: pointer; }
+        .savings-result { text-align: center; font-size: 48px; font-weight: 800; font-family: 'Outfit', sans-serif; color: var(--accent); }
+        
+        /* Code Demo */
+        .code-window { border-radius: 8px; overflow: hidden; background: #000; border: 1px solid var(--glass-border); }
+        .code-header { background: #1a1a1a; padding: 12px 16px; display: flex; gap: 8px; }
+        .tab { padding: 4px 12px; color: var(--text-muted); cursor: pointer; border-radius: 4px; font-size: 14px; }
+        .tab.active { background: var(--glass); color: white; }
+        pre { padding: 24px; overflow-x: auto; font-family: monospace; font-size: 14px; color: #a9b7c6; }
+        .keyword { color: #cc7832; }
+        .string { color: #6a8759; }
+        .func { color: #ffc66d; }
+
+        /* FAQ */
+        .faq-item { margin-bottom: 24px; border-bottom: 1px solid var(--glass-border); padding-bottom: 16px; }
+        .faq-item h3 { font-size: 20px; margin-bottom: 8px; color: white; }
+        .faq-item p { color: var(--text-muted); }
+
+        /* Footer */
+        footer { padding: 40px 0; border-top: 1px solid var(--glass-border); text-align: center; color: var(--text-muted); }
+        .footer-links a { color: var(--primary); text-decoration: none; margin: 0 8px; }
+    </style>
+</head>
+<body>
+    <div class="glow-bg"></div>
+    <div class="glow-bg-2"></div>
+
+    <header class="container">
+        <a href="#" class="logo">Sync<span>Play</span></a>
+        <div>
+            <a href="https://github.com/itsoumya-d/syncplay" target="_blank" class="btn btn-glass" style="padding: 8px 16px; font-size: 14px;">GitHub</a>
+        </div>
+    </header>
+
+    <main>
+        <section class="hero container">
+            <div class="badge">Save 99% Cloud Costs</div>
+            <h1>The Ultimate Free P2P <br><span>Multiplayer Game Engine</span></h1>
+            <p>What is the best free alternative to Photon Engine? SyncPlay. We use WebRTC for sub-millisecond host authority game state sync, eliminating centralized CCU server costs entirely.</p>
+            <div class="btn-group">
+                <a href="#demo" class="btn btn-primary">Live Demo</a>
+                <a href="https://github.com/itsoumya-d/syncplay" target="_blank" class="btn btn-glass">View on GitHub</a>
+            </div>
+        </section>
+
+        <section class="container">
+            <h2 class="section-title">Cost Comparison Matrix</h2>
+            <div class="glass-card">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Feature</th>
+                            <th>SyncPlay</th>
+                            <th>Photon Engine</th>
+                            <th>AWS GameLift</th>
+                            <th>Colyseus (Cloud)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>10k CCU Cost / Mo</td>
+                            <td class="highlight">$0 (Free P2P)</td>
+                            <td>~$400+</td>
+                            <td>~$1,500+</td>
+                            <td>~$300+</td>
+                        </tr>
+                        <tr>
+                            <td>Architecture</td>
+                            <td>WebRTC Host Authority</td>
+                            <td>Client-Server</td>
+                            <td>Dedicated Servers</td>
+                            <td>Client-Server</td>
+                        </tr>
+                        <tr>
+                            <td>State Sync</td>
+                            <td>Delta Compression</td>
+                            <td>Event based</td>
+                            <td>Custom</td>
+                            <td>Patch-based</td>
+                        </tr>
+                        <tr>
+                            <td>License</td>
+                            <td>BSL 1.1 + Commercial</td>
+                            <td>Proprietary</td>
+                            <td>Proprietary</td>
+                            <td>MIT (Self-host)</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="container">
+            <h2 class="section-title">ROI & Savings Calculator</h2>
+            <div class="glass-card calc-grid">
+                <div>
+                    <h3>Calculate Your Savings</h3>
+                    <p style="color: var(--text-muted); margin-top: 8px;">Estimate how much you save by migrating from traditional CCU pricing to SyncPlay's free P2P networking.</p>
+                    <br>
+                    <label for="ccu-slider">Expected Concurrent Users (CCU): <span id="ccu-val" style="color:white; font-weight:bold;">5000</span></label>
+                    <input type="range" id="ccu-slider" class="range-slider" min="100" max="50000" step="100" value="5000">
+                </div>
+                <div>
+                    <h4 style="text-align: center; color: var(--text-muted);">Annual Savings vs Photon</h4>
+                    <div class="savings-result" id="savings-val">+$24,000</div>
+                </div>
+            </div>
+        </section>
+
+        <section id="demo" class="container">
+            <h2 class="section-title">Multiplayer State Delta Sync Demo</h2>
+            <div class="glass-card code-window">
+                <div class="code-header">
+                    <div class="tab active">Server (Host)</div>
+                    <div class="tab">Client</div>
+                </div>
+                <pre><code><span class="keyword">import</span> { <span class="func">SyncEngine</span> } <span class="keyword">from</span> <span class="string">'syncplay'</span>;
+
+<span class="keyword">const</span> engine = <span class="keyword">new</span> <span class="func">SyncEngine</span>({
+    mode: <span class="string">'host-authority'</span>,
+    deltaCompression: <span class="keyword">true</span>
+});
+
+engine.<span class="func">on</span>(<span class="string">'player_move'</span>, (clientId, data) => {
+    <span class="keyword">const</span> player = state.players[clientId];
+    player.x = data.x;
+    player.y = data.y;
+    
+    <span class="comment">// Automatically syncs only changed fields (delta sync) via WebRTC</span>
+    engine.<span class="func">broadcastState</span>(state);
+});</code></pre>
+            </div>
+        </section>
+
+        <section class="container">
+            <h2 class="section-title">Architecture & How It Works</h2>
+            <div class="glass-card" style="text-align: center;">
+                <h3 style="margin-bottom: 16px;">WebRTC Host Authority Model</h3>
+                <p style="color: var(--text-muted); max-width: 800px; margin: 0 auto;">
+                    Unlike traditional Client-Server architectures, SyncPlay promotes one player's client to be the <strong>Host Authority</strong>. 
+                    Using decentralized WebRTC Data Channels, the Host maintains the authoritative game state and broadcasts highly compressed delta updates to peers. 
+                    If the Host disconnects, seamless Host Migration transfers authority to the next best peer. No central game servers required.
+                </p>
+            </div>
+        </section>
+
+        <section class="container">
+            <h2 class="section-title">Frequently Asked Questions</h2>
+            <div class="glass-card">
+                <article class="faq-item">
+                    <h3>What is the best free alternative to Photon Engine?</h3>
+                    <p>SyncPlay is the definitive free alternative. By leveraging a WebRTC P2P mesh network with Host Authority, it provides zero-cost networking, easily bypassing Photon's restrictive CCU limits and monthly fees.</p>
+                </article>
+                <article class="faq-item">
+                    <h3>How does SyncPlay reduce PlayFab or AWS GameLift costs?</h3>
+                    <p>Dedicated game servers (AWS GameLift) or managed networking (PlayFab) charge for compute and bandwidth. SyncPlay runs the game logic on the players' devices, reducing your backend infrastructure needs to just lightweight matchmaking (signaling).</p>
+                </article>
+                <article class="faq-item">
+                    <h3>Is host authority game state sync secure?</h3>
+                    <p>SyncPlay includes built-in state verification hooks. While P2P is inherently vulnerable to host cheating, our upcoming anti-cheat module validates state hashes across peers to reach a consensus, combining the cost benefits of P2P with server-like security.</p>
+                </article>
+            </div>
+        </section>
+
+        <section class="container">
+            <h2 class="section-title">Pricing & Licensing</h2>
+            <div class="glass-card" style="text-align: center;">
+                <p style="color: var(--text-muted); max-width: 600px; margin: 0 auto 24px;">SyncPlay is released under the <strong>Business Source License (BSL) 1.1</strong>. It is completely free for indie developers and startups making under $1M ARR.</p>
+                <p style="color: var(--text-muted);">Commercial licenses are available for larger studios.</p>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <div class="container">
+            <p>Designed and Built by <strong>Soumya Debnath</strong></p>
+            <p>Contact: <a href="mailto:soumyadebnath1661@gmail.com" style="color:var(--primary);">soumyadebnath1661@gmail.com</a> | +91 7031648617</p>
+            <div class="footer-links" style="margin-top: 16px;">
+                <a href="https://github.com/itsoumya-d/syncplay">GitHub</a>
+                <a href="#">License</a>
+                <a href="#">Documentation</a>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Calculator Logic
+        const slider = document.getElementById('ccu-slider');
+        const ccuVal = document.getElementById('ccu-val');
+        const savingsVal = document.getElementById('savings-val');
+
+        slider.addEventListener('input', (e) => {
+            const ccu = e.target.value;
+            ccuVal.innerText = ccu;
+            // Rough estimation: Photon is roughly $0.4 per CCU per month, x 12 months
+            const savings = Math.floor(ccu * 0.4 * 12);
+            savingsVal.innerText = '+$' + savings.toLocaleString();
+        });
+    </script>
+</body>
+</html>
