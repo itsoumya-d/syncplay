@@ -1,508 +1,718 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SyncPlay | High-Performance HTML5 Multiplayer Engine</title>
-    <meta name="description" content="SyncPlay is the ultimate server-authoritative, client-predicted HTML5 multiplayer networking engine with WebRTC. Built for hyper-casual and arcade web games.">
-    <link rel="canonical" href="https://itsoumya-d.github.io/syncplay/">
-    
-    <!-- Open Graph -->
-    <meta property="og:title" content="SyncPlay | P2P Web Multiplayer Engine">
-    <meta property="og:description" content="Zero-latency HTML5 multiplayer SDK with WebRTC Data Channels. Host-authoritative, client-predicted.">
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://itsoumya-d.github.io/syncplay/">
-    <meta property="twitter:card" content="summary_large_image">
-
-    <!-- Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Press+Start+2P&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
-    
-    <!-- Structured Data -->
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "SoftwareApplication",
-      "name": "SyncPlay",
-      "operatingSystem": "Web",
-      "applicationCategory": "GameEngine",
-      "offers": {
-        "@type": "Offer",
-        "price": "0.00",
-        "priceCurrency": "USD"
-      },
-      "author": {
-        "@type": "Person",
-        "name": "Soumya Debnath",
-        "email": "soumyadebnath1661@gmail.com",
-        "telephone": "+91 7031648617"
-      }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SyncPlay | P2P Multiplayer Game State Sync</title>
+  <meta name="description" content="SyncPlay - The best free alternative to Photon Engine. Zero servers, P2P authority multiplayer state sync.">
+  <meta property="og:title" content="SyncPlay | P2P Multiplayer Sync">
+  <meta property="og:description" content="Zero servers. P2P authority. The free alternative to Photon Engine.">
+  <meta property="og:type" content="website">
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;500&family=JetBrains+Mono:wght@400;500&family=Syne:wght@700&display=swap" rel="stylesheet">
+  
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "SyncPlay",
+    "applicationCategory": "DeveloperApplication",
+    "description": "P2P Multiplayer Game State Sync engine with zero servers. The best free alternative to Photon Engine."
+  }
+  </script>
+  
+  <style>
+    :root {
+      --bg: #080018;
+      --primary: #FF007F;
+      --secondary: #00F0FF;
+      --tertiary: #A855F7;
+      --text-body: #D1D5DB;
+      --text-heading: #F3F4F6;
+      --border: rgba(255, 255, 255, 0.06);
+      --card-bg: rgba(255, 255, 255, 0.02);
     }
-    </script>
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "FAQPage",
-      "mainEntity": [{
-        "@type": "Question",
-        "name": "How does SyncPlay handle latency?",
-        "acceptedAnswer": {
-          "@type": "Answer",
-          "text": "SyncPlay uses client-side prediction and server reconciliation to hide network latency, ensuring buttery smooth gameplay."
-        }
-      }]
+    
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
     }
-    </script>
-    <style>
-        :root {
-            --bg: #080018;
-            --primary: #FF007F;
-            --secondary: #00F0FF;
-            --accent: #A855F7;
-            --text-light: #e0e0e0;
-            --glass: rgba(16, 0, 32, 0.6);
-            --border: rgba(255, 0, 127, 0.3);
-        }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
-        body {
-            background-color: var(--bg);
-            color: var(--text-light);
-            font-family: 'Syne', sans-serif;
-            overflow-x: hidden;
-            background-image: 
-                radial-gradient(circle at 20% 30%, rgba(255, 0, 127, 0.15) 0%, transparent 40%),
-                radial-gradient(circle at 80% 70%, rgba(0, 240, 255, 0.1) 0%, transparent 40%);
-            background-attachment: fixed;
-        }
-
-        h1, h2, h3, .arcade-text {
-            font-family: 'Press Start 2P', cursive;
-        }
-
-        .code-text {
-            font-family: 'JetBrains Mono', monospace;
-        }
-
-        /* Nav */
-        nav {
-            display: flex;
-            justify-content: space-between;
-            padding: 1.5rem 2rem;
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            background: var(--glass);
-            border-bottom: 1px solid var(--border);
-            position: sticky;
-            top: 0;
-            z-index: 100;
-        }
-
-        nav .logo {
-            font-size: 1.2rem;
-            color: var(--primary);
-            text-shadow: 0 0 10px var(--primary);
-        }
-
-        /* Hero */
-        .hero {
-            min-height: 90vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-            padding: 2rem;
-            position: relative;
-        }
-
-        .hero h1 {
-            font-size: 3rem;
-            line-height: 1.5;
-            margin-bottom: 1.5rem;
-            background: linear-gradient(90deg, var(--primary), var(--secondary));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            text-shadow: 0 0 20px rgba(255,0,127,0.3);
-        }
-
-        .hero p {
-            font-size: 1.25rem;
-            max-width: 600px;
-            margin-bottom: 2rem;
-            line-height: 1.6;
-        }
-
-        .btn {
-            display: inline-block;
-            padding: 1rem 2rem;
-            font-family: 'Press Start 2P', cursive;
-            font-size: 0.8rem;
-            text-transform: uppercase;
-            text-decoration: none;
-            color: #fff;
-            background: transparent;
-            border: 2px solid var(--primary);
-            box-shadow: 0 0 10px var(--primary), inset 0 0 10px var(--primary);
-            transition: all 0.3s ease;
-            cursor: pointer;
-            margin: 0.5rem;
-        }
-
-        .btn:hover {
-            background: var(--primary);
-            box-shadow: 0 0 20px var(--primary), inset 0 0 20px var(--primary);
-        }
-        
-        .btn-secondary {
-            border-color: var(--secondary);
-            box-shadow: 0 0 10px var(--secondary), inset 0 0 10px var(--secondary);
-        }
-        
-        .btn-secondary:hover {
-            background: var(--secondary);
-            box-shadow: 0 0 20px var(--secondary), inset 0 0 20px var(--secondary);
-        }
-
-        /* Demo Section */
-        .demo-section {
-            padding: 4rem 2rem;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-
-        .demo-container {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 2rem;
-            justify-content: center;
-            margin-top: 2rem;
-            max-width: 1200px;
-            width: 100%;
-        }
-
-        .demo-box {
-            background: var(--glass);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 1.5rem;
-            flex: 1;
-            min-width: 300px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
-            backdrop-filter: blur(16px);
-        }
-
-        .demo-box h3 {
-            font-size: 1rem;
-            margin-bottom: 1rem;
-            color: var(--secondary);
-        }
-
-        canvas {
-            background: #111;
-            border: 2px solid #333;
-            border-radius: 8px;
-            width: 100%;
-            height: 300px;
-            image-rendering: pixelated;
-        }
-        
-        .log-box {
-            background: #000;
-            border: 1px solid #333;
-            border-radius: 8px;
-            height: 300px;
-            overflow-y: auto;
-            padding: 1rem;
-            font-size: 0.8rem;
-            color: #0f0;
-        }
-        .log-entry { margin-bottom: 0.5rem; }
-
-        /* Calculator Section */
-        .calc-section {
-            padding: 4rem 2rem;
-            background: linear-gradient(180deg, transparent, rgba(168, 85, 247, 0.1));
-        }
-
-        .calc-container {
-            max-width: 800px;
-            margin: 0 auto;
-            background: var(--glass);
-            border: 1px solid var(--accent);
-            border-radius: 12px;
-            padding: 2rem;
-            backdrop-filter: blur(16px);
-        }
-
-        .slider-container {
-            margin: 2rem 0;
-        }
-        
-        input[type=range] {
-            width: 100%;
-            margin: 1rem 0;
-            accent-color: var(--primary);
-        }
-
-        .cost-result {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-top: 2rem;
-            padding-top: 2rem;
-            border-top: 1px solid rgba(255,255,255,0.1);
-        }
-
-        .cost-item {
-            text-align: center;
-        }
-        .cost-item h4 {
-            color: var(--secondary);
-            margin-bottom: 0.5rem;
-        }
-        .cost-item .price {
-            font-size: 2rem;
-            font-weight: bold;
-            font-family: 'Press Start 2P', cursive;
-        }
-        .cost-item.syncplay .price {
-            color: var(--primary);
-            text-shadow: 0 0 10px var(--primary);
-        }
-
-        /* Footer */
-        footer {
-            padding: 3rem 2rem;
-            text-align: center;
-            border-top: 1px solid var(--border);
-            background: rgba(0,0,0,0.5);
-            font-size: 0.9rem;
-        }
-
-        footer p { margin-bottom: 0.5rem; }
-        footer a { color: var(--secondary); text-decoration: none; }
-    </style>
+    
+    body {
+      background-color: var(--bg);
+      color: var(--text-body);
+      font-family: 'Inter', sans-serif;
+      font-size: 16px;
+      line-height: 1.5;
+      font-weight: 300;
+      overflow-x: hidden;
+      position: relative;
+      scroll-behavior: smooth;
+    }
+    
+    body::before {
+      content: "";
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(255, 255, 255, 0.02) 2px,
+        rgba(255, 255, 255, 0.02) 4px
+      );
+      pointer-events: none;
+      z-index: -1;
+    }
+    
+    h1, h2, h3, h4, h5, h6 {
+      font-family: 'Syne', sans-serif;
+      font-weight: 700;
+      color: var(--text-heading);
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+    }
+    
+    a {
+      text-decoration: none;
+      color: inherit;
+    }
+    
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+    
+    /* Navigation */
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 64px;
+      background: rgba(8, 0, 24, 0.7);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      z-index: 100;
+      display: flex;
+      align-items: center;
+    }
+    
+    .nav-inner {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+    }
+    
+    .logo {
+      font-family: 'Syne', sans-serif;
+      font-size: 20px;
+      color: var(--primary);
+      text-shadow: 0 0 10px rgba(255, 0, 127, 0.5);
+    }
+    
+    .nav-links {
+      display: flex;
+      gap: 32px;
+    }
+    
+    .nav-links a {
+      font-size: 14px;
+      font-weight: 500;
+      transition: color 0.3s;
+    }
+    
+    .nav-links a:hover {
+      color: var(--secondary);
+    }
+    
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      height: 48px;
+      padding: 16px 32px;
+      border-radius: 12px;
+      font-weight: 500;
+      transition: all 0.3s ease;
+      cursor: pointer;
+      border: none;
+    }
+    
+    .btn-primary {
+      background: linear-gradient(135deg, var(--primary), var(--tertiary));
+      color: #fff;
+      box-shadow: 0 0 20px rgba(255, 0, 127, 0.2);
+    }
+    
+    .btn-primary:hover {
+      transform: scale(1.02);
+      box-shadow: 0 0 30px rgba(255, 0, 127, 0.4);
+    }
+    
+    .btn-secondary {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-heading);
+    }
+    
+    .btn-secondary:hover {
+      background: var(--card-bg);
+      border-color: var(--secondary);
+    }
+    
+    /* Sections */
+    section {
+      padding: 120px 0;
+      position: relative;
+    }
+    
+    /* Hero */
+    .hero {
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      padding-top: 64px;
+    }
+    
+    .hero-content {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 64px;
+      align-items: center;
+    }
+    
+    .hero-text h1 {
+      font-size: 64px;
+      margin-bottom: 24px;
+    }
+    
+    .hero-text p {
+      font-size: 20px;
+      margin-bottom: 32px;
+      color: var(--text-body);
+    }
+    
+    .hero-actions {
+      display: flex;
+      gap: 16px;
+    }
+    
+    .hero-game {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    canvas {
+      width: 100%;
+      height: 300px;
+      background: #000;
+      border-radius: 8px;
+      display: block;
+    }
+    
+    .game-log {
+      margin-top: 16px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: var(--secondary);
+      height: 80px;
+      overflow-y: hidden;
+    }
+    
+    /* Metrics */
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 32px;
+      text-align: center;
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      padding: 64px 0;
+    }
+    
+    .metric-value {
+      font-family: 'Syne', sans-serif;
+      font-size: 48px;
+      color: var(--primary);
+      margin-bottom: 8px;
+      text-shadow: 0 0 15px rgba(255, 0, 127, 0.3);
+    }
+    
+    .metric-label {
+      font-size: 16px;
+      font-weight: 500;
+    }
+    
+    /* Cost */
+    .cost-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 48px;
+    }
+    
+    .cost-table th, .cost-table td {
+      padding: 24px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+    }
+    
+    .cost-table th {
+      font-family: 'Syne', sans-serif;
+      color: var(--text-heading);
+      font-size: 20px;
+    }
+    
+    .cost-table .highlight {
+      color: var(--secondary);
+      font-weight: 500;
+    }
+    
+    /* Architecture */
+    .arch-flow {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 64px;
+      position: relative;
+    }
+    
+    .arch-flow::before {
+      content: "";
+      position: absolute;
+      top: 50%; left: 0; right: 0;
+      height: 2px;
+      background: var(--border);
+      z-index: -1;
+    }
+    
+    .arch-step {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      padding: 24px;
+      border-radius: 12px;
+      width: 22%;
+      text-align: center;
+    }
+    
+    .arch-step h4 {
+      color: var(--tertiary);
+      margin-bottom: 8px;
+    }
+    
+    /* Code */
+    .code-tabs {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 24px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 16px;
+    }
+    
+    .tab {
+      background: transparent;
+      border: none;
+      color: var(--text-body);
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      cursor: pointer;
+      padding: 8px 16px;
+      border-radius: 8px;
+    }
+    
+    .tab.active {
+      background: var(--card-bg);
+      color: var(--secondary);
+    }
+    
+    .code-block {
+      background: rgba(0, 0, 0, 0.5);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 32px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 14px;
+      color: #A8C7FA;
+      overflow-x: auto;
+    }
+    
+    /* Features */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 32px;
+      margin-top: 64px;
+    }
+    
+    .feature-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 48px 32px;
+      transition: all 0.3s;
+    }
+    
+    .feature-card:hover {
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+    
+    .feature-card h3 {
+      font-size: 24px;
+      margin-bottom: 16px;
+      color: var(--text-heading);
+    }
+    
+    /* Pricing */
+    .pricing-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 32px;
+      margin-top: 64px;
+    }
+    
+    .price-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 48px 32px;
+      text-align: center;
+    }
+    
+    .price-card h3 {
+      font-size: 24px;
+      margin-bottom: 16px;
+    }
+    
+    .price {
+      font-family: 'Syne', sans-serif;
+      font-size: 48px;
+      color: var(--primary);
+      margin-bottom: 32px;
+    }
+    
+    /* Footer */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 64px 0;
+      text-align: center;
+      font-size: 14px;
+      color: #9CA3AF;
+    }
+    
+    .section-title {
+      font-size: 48px;
+      text-align: center;
+      margin-bottom: 16px;
+    }
+    
+    .section-subtitle {
+      text-align: center;
+      font-size: 20px;
+      color: var(--text-body);
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    
+    .gsap-reveal { opacity: 0; }
+  </style>
 </head>
 <body>
 
-    <nav>
-        <div class="logo arcade-text">SYNCPLAY</div>
-        <div class="links">
-            <a href="#demo" class="btn btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.6rem;">Live Demo</a>
+  <nav>
+    <div class="container nav-inner">
+      <div class="logo">SYNCPLAY</div>
+      <div class="nav-links">
+        <a href="#features">Features</a>
+        <a href="#architecture">Architecture</a>
+        <a href="#pricing">Pricing</a>
+      </div>
+    </div>
+  </nav>
+
+  <section class="hero">
+    <div class="container hero-content">
+      <div class="hero-text">
+        <h1 class="hero-title">Multiplayer sync.<br>Zero servers.<br><span style="color: var(--primary);">P2P authority.</span></h1>
+        <p>SyncPlay eliminates the need for authoritative servers. Input prediction, state reconciliation, and delta compression out of the box.</p>
+        <div class="hero-actions">
+          <a href="#code" class="btn btn-primary">View Documentation</a>
+          <a href="#pricing" class="btn btn-secondary">Get License</a>
         </div>
-    </nav>
-
-    <section class="hero">
-        <h1>MULTIPLAYER<br>MADE <span style="color: var(--secondary);">INSTANT</span></h1>
-        <p>Drop-in HTML5 Canvas networking engine. Server-authoritative logic, buttery client-side prediction, zero-latency feel.</p>
-        <div>
-            <a href="#demo" class="btn">Play Demo</a>
-            <a href="#calculator" class="btn btn-secondary">ROI Calc</a>
+      </div>
+      
+      <div class="hero-game">
+        <canvas id="gameCanvas"></canvas>
+        <div class="game-log" id="gameLog">
+          <div>[SYNC] Awaiting player inputs...</div>
         </div>
-    </section>
+      </div>
+    </div>
+  </section>
 
-    <section id="demo" class="demo-section">
-        <h2 class="arcade-text" style="font-size: 1.5rem; margin-bottom: 1rem;">Live Sync Demo</h2>
-        <p>Use W, A, S, D to move the pink square (Client). The blue square represents the Server Authority state.</p>
-        
-        <div class="demo-container">
-            <div class="demo-box">
-                <h3>Client Canvas</h3>
-                <canvas id="clientCanvas" width="400" height="300"></canvas>
-                <p style="margin-top: 1rem; font-size: 0.8rem; color: #888;">Pink = Client Predicted | Blue = Server Auth</p>
-            </div>
-            
-            <div class="demo-box">
-                <h3>Server Delta Log</h3>
-                <div class="log-box code-text" id="serverLog">
-                    <!-- Logs go here -->
-                </div>
-            </div>
-        </div>
-    </section>
+  <section class="container">
+    <div class="metrics">
+      <div>
+        <div class="metric-value" id="stat-sync">0</div>
+        <div class="metric-label">ms average sync time</div>
+      </div>
+      <div>
+        <div class="metric-value" id="stat-servers">0</div>
+        <div class="metric-label">Servers required</div>
+      </div>
+      <div>
+        <div class="metric-value">JSON Patch</div>
+        <div class="metric-label">Delta Compression</div>
+      </div>
+    </div>
+  </section>
 
-    <section id="calculator" class="calc-section">
-        <div class="calc-container">
-            <h2 class="arcade-text" style="font-size: 1.5rem; margin-bottom: 1rem; text-align: center;">CCU Cost Calculator</h2>
-            <p style="text-align: center; margin-bottom: 2rem;">Compare SyncPlay (Self-hosted WebRTC) vs Photon Engine</p>
-            
-            <div class="slider-container">
-                <label for="ccuSlider">Peak Concurrent Users (CCU): <span id="ccuValue" class="arcade-text" style="color: var(--secondary); font-size: 1rem;">1000</span></label>
-                <input type="range" id="ccuSlider" min="100" max="10000" step="100" value="1000">
-            </div>
+  <section class="container" id="cost">
+    <h2 class="section-title">Cut infrastructure costs to zero</h2>
+    <p class="section-subtitle">What is the best free alternative to Photon Engine? SyncPlay replaces expensive server bills with efficient P2P networking.</p>
+    
+    <table class="cost-table gsap-reveal">
+      <thead>
+        <tr>
+          <th>Solution</th>
+          <th>Architecture</th>
+          <th>Annual Cost (10k CCU)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Photon Engine</td>
+          <td>Client-Server</td>
+          <td>~$36,000 / yr</td>
+        </tr>
+        <tr>
+          <td>Amazon GameLift</td>
+          <td>Dedicated Servers</td>
+          <td>~$24,000 / yr</td>
+        </tr>
+        <tr>
+          <td class="highlight">SyncPlay</td>
+          <td class="highlight">Host Authority P2P</td>
+          <td class="highlight">$0 / yr</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
 
-            <div class="cost-result">
-                <div class="cost-item">
-                    <h4>Photon (PUN 2)</h4>
-                    <div class="price code-text" id="photonCost">$95/mo</div>
-                </div>
-                <div class="cost-item syncplay">
-                    <h4>SyncPlay</h4>
-                    <div class="price code-text" id="syncplayCost">$5/mo</div>
-                </div>
-            </div>
-        </div>
-    </section>
+  <section class="container" id="architecture">
+    <h2 class="section-title">Host Authority Flow</h2>
+    <p class="section-subtitle">A modern approach to WebRTC and WebSocket P2P networking.</p>
+    
+    <div class="arch-flow gsap-reveal">
+      <div class="arch-step">
+        <h4>1. Input</h4>
+        <p>Client sends actions</p>
+      </div>
+      <div class="arch-step">
+        <h4>2. Predict</h4>
+        <p>Local simulation</p>
+      </div>
+      <div class="arch-step">
+        <h4>3. Reconcile</h4>
+        <p>Host resolves conflicts</p>
+      </div>
+      <div class="arch-step">
+        <h4>4. Broadcast</h4>
+        <p>Delta updates sent</p>
+      </div>
+    </div>
+  </section>
 
-    <footer>
-        <p class="arcade-text" style="font-size: 0.8rem; margin-bottom: 1rem; color: var(--primary);">SYNCPLAY ENGINE</p>
-        <p>Created by <strong>Soumya Debnath</strong></p>
-        <p><a href="mailto:soumyadebnath1661@gmail.com">soumyadebnath1661@gmail.com</a> | +91 7031648617</p>
-        <p style="margin-top: 1rem; color: #666; font-size: 0.8rem;">Licensed under BSL 1.1 | Open-core for indie devs.</p>
-    </footer>
+  <section class="container" id="code">
+    <h2 class="section-title">Developer Experience</h2>
+    
+    <div class="gsap-reveal">
+      <div class="code-tabs">
+        <button class="tab active">Host</button>
+        <button class="tab">Join</button>
+        <button class="tab">Sync State</button>
+      </div>
+      
+      <div class="code-block" id="code-content">
+<pre><code>import { SyncPlay } from 'syncplay';
 
-    <script>
-        // SyncPlay Demo Logic
-        const canvas = document.getElementById('clientCanvas');
-        const ctx = canvas.getContext('2d');
-        const logBox = document.getElementById('serverLog');
+// Initialize host authority
+const host = new SyncPlay({
+  mode: 'host',
+  maxPlayers: 4,
+  tickRate: 60
+});
 
-        // State
-        const serverState = { x: 50, y: 50 };
-        let clientState = { x: 50, y: 50 };
-        const speed = 4;
-        const keys = { w: false, a: false, s: false, d: false };
-        let sequence = 0;
-        const pendingInputs = [];
+// Start accepting connections
+await host.listen();
+console.log(`Lobby code: ${host.lobbyId}`);</code></pre>
+      </div>
+    </div>
+  </section>
 
-        // Input handling
-        window.addEventListener('keydown', (e) => {
-            const key = e.key.toLowerCase();
-            if (keys.hasOwnProperty(key)) keys[key] = true;
-        });
-        window.addEventListener('keyup', (e) => {
-            const key = e.key.toLowerCase();
-            if (keys.hasOwnProperty(key)) keys[key] = false;
-        });
+  <section class="container" id="features">
+    <h2 class="section-title">Everything you need</h2>
+    
+    <div class="features-grid">
+      <div class="feature-card gsap-reveal">
+        <h3>Host Authority</h3>
+        <p>Elect a host to manage authority, automatically migrating if the host disconnects.</p>
+      </div>
+      <div class="feature-card gsap-reveal">
+        <h3>Client Prediction</h3>
+        <p>Immediate visual feedback for local actions while waiting for host confirmation.</p>
+      </div>
+      <div class="feature-card gsap-reveal">
+        <h3>Delta Compression</h3>
+        <p>Only transmit what changed. Efficient binary packing reduces bandwidth by 90%.</p>
+      </div>
+      <div class="feature-card gsap-reveal">
+        <h3>Interpolation</h3>
+        <p>Smooth out remote entities to handle jitter and varying packet delivery times.</p>
+      </div>
+      <div class="feature-card gsap-reveal">
+        <h3>Lobby System</h3>
+        <p>Built-in matchmaking and NAT traversal via our lightweight STUN/TURN relays.</p>
+      </div>
+      <div class="feature-card gsap-reveal">
+        <h3>Voice Chat</h3>
+        <p>Integrated WebRTC audio streams mixed directly with your game loop.</p>
+      </div>
+    </div>
+  </section>
 
-        function log(msg) {
-            const el = document.createElement('div');
-            el.className = 'log-entry';
-            el.innerText = `[HOST] ${msg}`;
-            logBox.appendChild(el);
-            logBox.scrollTop = logBox.scrollHeight;
-            if(logBox.children.length > 50) logBox.removeChild(logBox.firstChild);
+  <section class="container" id="pricing">
+    <h2 class="section-title">BSL 1.1 License</h2>
+    <p class="section-subtitle">Free for non-commercial and early-stage. Paid for scale.</p>
+    
+    <div class="pricing-grid">
+      <div class="price-card gsap-reveal">
+        <h3>Indie</h3>
+        <div class="price">$349</div>
+        <p>Perpetual license for teams under $100k revenue.</p>
+      </div>
+      <div class="price-card gsap-reveal" style="border-color: var(--primary);">
+        <h3>Studio</h3>
+        <div class="price">$2,499</div>
+        <p>Unlimited seats. Priority support. Custom signaling.</p>
+      </div>
+      <div class="price-card gsap-reveal">
+        <h3>Enterprise</h3>
+        <div class="price">$12,999</div>
+        <p>Source access. SLA guarantees. Integration support.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="container">
+      <p>&copy; 2026 SyncPlay. All rights reserved. The ultimate free Photon Engine alternative.</p>
+    </div>
+  </footer>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/countup.js/2.8.0/countUp.umd.js"></script>
+  
+  <script>
+    gsap.registerPlugin(ScrollTrigger);
+
+    // Hero Animation
+    gsap.from(".hero-title", {
+      y: 50,
+      opacity: 0,
+      duration: 1,
+      ease: "power3.out"
+    });
+
+    // Reveal Sections
+    gsap.utils.toArray('.gsap-reveal').forEach(element => {
+      gsap.fromTo(element, 
+        { y: 60, opacity: 0 },
+        {
+          scrollTrigger: {
+            trigger: element,
+            start: "top 80%",
+          },
+          y: 0,
+          opacity: 1,
+          duration: 0.8,
+          ease: "power3.out",
+          stagger: 0.1
         }
+      );
+    });
 
-        // Network simulation
-        function simulateNetwork(input) {
-            // Send to server with artificial latency
-            setTimeout(() => {
-                // Server processes input
-                if (input.keys.w) serverState.y -= speed;
-                if (input.keys.s) serverState.y += speed;
-                if (input.keys.a) serverState.x -= speed;
-                if (input.keys.d) serverState.x += speed;
+    // Stats
+    ScrollTrigger.create({
+      trigger: ".metrics",
+      start: "top 80%",
+      once: true,
+      onEnter: () => {
+        new countUp.CountUp('stat-sync', 16, { prefix: '<' }).start();
+        new countUp.CountUp('stat-servers', 0).start();
+      }
+    });
 
-                log(`Ack seq: ${input.seq} | Auth Pos: (${serverState.x}, ${serverState.y})`);
+    // Mini Game
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const log = document.getElementById('gameLog');
+    
+    canvas.width = canvas.parentElement.clientWidth - 48;
+    canvas.height = 300;
 
-                // Server sends back state with latency
-                setTimeout(() => {
-                    receiveServerState({
-                        x: serverState.x,
-                        y: serverState.y,
-                        lastProcessedSeq: input.seq
-                    });
-                }, 100); 
-            }, 100);
-        }
+    const p1 = { x: 50, y: 150, color: '#FF007F' };
+    const p2 = { x: canvas.width - 70, y: 150, color: '#00F0FF' };
 
-        function receiveServerState(state) {
-            // Server reconciliation
-            clientState.x = state.x;
-            clientState.y = state.y;
+    const keys = {};
+    window.addEventListener('keydown', e => {
+      keys[e.key] = true;
+      if (['w','a','s','d','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)) {
+        e.preventDefault();
+        logMessage(`[INPUT] Key: ${e.key} | P1: ${p1.x},${p1.y} | P2: ${p2.x},${p2.y}`);
+      }
+    });
+    window.addEventListener('keyup', e => keys[e.key] = false);
 
-            // Remove processed inputs
-            let i = 0;
-            while (i < pendingInputs.length) {
-                if (pendingInputs[i].seq <= state.lastProcessedSeq) {
-                    pendingInputs.splice(i, 1);
-                } else {
-                    i++;
-                }
-            }
+    function logMessage(msg) {
+      const div = document.createElement('div');
+      div.textContent = msg;
+      log.appendChild(div);
+      log.scrollTop = log.scrollHeight;
+    }
 
-            // Re-apply pending inputs (Client Prediction)
-            pendingInputs.forEach(input => {
-                if (input.keys.w) clientState.y -= speed;
-                if (input.keys.s) clientState.y += speed;
-                if (input.keys.a) clientState.x -= speed;
-                if (input.keys.d) clientState.x += speed;
-            });
-        }
+    function update() {
+      const speed = 4;
+      if (keys['w']) p1.y -= speed;
+      if (keys['s']) p1.y += speed;
+      if (keys['a']) p1.x -= speed;
+      if (keys['d']) p1.x += speed;
 
-        function update() {
-            let hasInput = keys.w || keys.a || keys.s || keys.d;
-            
-            if (hasInput) {
-                sequence++;
-                const input = { seq: sequence, keys: { ...keys } };
-                pendingInputs.push(input);
-                
-                // Client Prediction (apply immediately)
-                if (keys.w) clientState.y -= speed;
-                if (keys.s) clientState.y += speed;
-                if (keys.a) clientState.x -= speed;
-                if (keys.d) clientState.x += speed;
+      if (keys['ArrowUp']) p2.y -= speed;
+      if (keys['ArrowDown']) p2.y += speed;
+      if (keys['ArrowLeft']) p2.x -= speed;
+      if (keys['ArrowRight']) p2.x += speed;
 
-                simulateNetwork(input);
-            }
-        }
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        function draw() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = p1.color;
+      ctx.fillRect(p1.x, p1.y, 20, 20);
 
-            // Draw Server Auth (Blue - Ghost)
-            ctx.fillStyle = 'rgba(0, 240, 255, 0.5)';
-            ctx.fillRect(serverState.x, serverState.y, 30, 30);
+      ctx.fillStyle = p2.color;
+      ctx.fillRect(p2.x, p2.y, 20, 20);
 
-            // Draw Client Predicted (Pink - Solid)
-            ctx.fillStyle = '#FF007F';
-            ctx.fillRect(clientState.x, clientState.y, 30, 30);
-            ctx.strokeStyle = '#fff';
-            ctx.strokeRect(clientState.x, clientState.y, 30, 30);
-        }
-
-        function loop() {
-            update();
-            draw();
-            requestAnimationFrame(loop);
-        }
-
-        loop();
-        log("Server Auth Started. Listening for WebRTC Data Channels...");
-
-        // Calculator Logic
-        const ccuSlider = document.getElementById('ccuSlider');
-        const ccuValue = document.getElementById('ccuValue');
-        const photonCost = document.getElementById('photonCost');
-        const syncplayCost = document.getElementById('syncplayCost');
-
-        ccuSlider.addEventListener('input', (e) => {
-            const val = parseInt(e.target.value);
-            ccuValue.innerText = val;
-            
-            // Rough Photon Pricing estimation
-            let pCost = 95;
-            if(val > 500) pCost = 185 + ((val-500)/100)*10;
-            if(val > 2000) pCost = 390 + ((val-2000)/100)*8;
-            
-            photonCost.innerText = `$${Math.round(pCost)}/mo`;
-            
-            // SyncPlay (self hosted lightweight signaling server)
-            let sCost = 5;
-            if(val > 1000) sCost = 20;
-            if(val > 5000) sCost = 40;
-            syncplayCost.innerText = `$${sCost}/mo`;
-        });
-    </script>
+      requestAnimationFrame(update);
+    }
+    update();
+  </script>
 </body>
 </html>
