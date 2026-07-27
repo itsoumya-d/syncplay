@@ -1,3 +1,10 @@
+<!--
+// Copyright (c) 2024-2026 Soumya Debnath. All Rights Reserved.
+// Licensed under the Business Source License 1.1 (BSL 1.1).
+// See LICENSE file for details. Production use requires a paid license.
+// Contact: soumyadebnath1661@gmail.com | +91 7031648617
+-->
+
 # SyncPlay
 
 ![Version](https://img.shields.io/badge/version-2.1.0-blue.svg)
@@ -58,6 +65,46 @@ graph TD
 1. **Matchmaker (Signaling Server)**: Exists solely to group players into rooms and facilitate the WebRTC handshake.
 2. **Host**: The room creator. Holds the authoritative `StateManager`. Sends state patches down to clients, validates client inputs.
 3. **Clients**: Connect to the host. They send inputs (e.g., "move left") to the host and receive authoritative state updates. They apply `Interpolator` logic to smooth out movement between network ticks.
+
+---
+
+## 🔬 Real WebRTC Engine & Host Migration (Research-Backed)
+
+SyncPlay incorporates low-level networking primitives designed specifically for real-time browser multiplayer games and interactive simulation loops.
+
+### ⚡ Real WebRTC Dual DataChannels
+- **Unreliable Movement Channel (`ordered: false, maxRetransmits: 0`)**: Ultra-low latency UDP transport for high-frequency player coordinates, velocity vectors, and camera angles where dropped frames are ignored in favor of fresh state.
+- **Reliable Event Channel (`ordered: true`)**: TCP-like ordered delivery for critical state changes, RPC events, player inventory mutations, and lobby state updates.
+
+### 🔄 Automatic Host Migration & Consensus
+- **Zero-Downtime Host Failover**: Distributed heartbeat monitor automatically detects when the host peer disconnects or experiences network degradation.
+- **State Snapshot Handover**: The host's authoritative state tree is seamlessly transferred to the peer with the lowest overall network latency, electing a new host without terminating active player sessions.
+
+### ⏱️ 60Hz High-Frequency Game Loop
+- **Configurable Tick Rate**: High-resolution game loop scheduler operating up to 60Hz (16.6ms intervals) driven by `requestAnimationFrame` and `performance.now()`.
+- **State Interpolation & Extrapolation**: Smooth client-side entity interpolation buffers state snapshots to render fluid 60fps movement.
+
+### 🔬 Research Foundation
+> **Research Specifications:**  
+> W3C & IETF Working Group Specifications (2023): *WebRTC 1.0: Real-Time Communication Between Browsers* & *WebTransport Protocol Framework*. [w3.org/TR/webrtc/](https://www.w3.org/TR/webrtc/)
+
+### 💻 Usage Example: Dual DataChannels, 60Hz Loop & Host Migration
+
+```typescript
+import { SyncPlay } from 'syncplay';
+
+const engine = new SyncPlay('wss://matchmaker.example.com', {
+  tickRate: 60, // 60Hz tick loop
+  autoHostMigration: true, // Enables automatic host failover
+  unreliableChannel: true // WebRTC unreliable data channel for movement
+});
+
+engine.on('host_migrated', (newHostId) => {
+  console.log(`New authoritative host elected: ${newHostId}`);
+});
+```
+
+---
 
 ## API Reference
 
