@@ -31,7 +31,13 @@ export class NetworkManager extends EventEmitter {
       this.ws.onerror = (err) => reject(err);
       
       this.ws.onmessage = async (event) => {
-        const msg = JSON.parse(event.data);
+        let msg;
+        try {
+          msg = JSON.parse(event.data);
+        } catch {
+          console.warn('SyncPlay: Received malformed WebSocket message, ignoring');
+          return;
+        }
         
         switch (msg.type) {
           case 'peer-joined':
@@ -51,12 +57,21 @@ export class NetworkManager extends EventEmitter {
             break;
         }
       };
+
+      // Clean up on tab close to prevent zombie connections
+      if (typeof window !== 'undefined') {
+        window.addEventListener('beforeunload', () => this.disconnect());
+      }
     });
   }
 
   private createPeerConnection(peerId: string): RTCPeerConnection {
     const pc = new RTCPeerConnection({
-      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun.cloudflare.com:3478' },
+      ]
     });
 
     pc.onicecandidate = (event) => {
@@ -155,38 +170,46 @@ export class NetworkManager extends EventEmitter {
 
   private handlePeerLeft(peerId: string) {
     const peer = this.peers.get(peerId);
-    if (peer) {
-      peer.reliable.close();
-      peer.unreliable.close();
-      peer.pc.close();
-      this.peers.delete(peerId);
-      this.emit('peer-left', peerId);
+    if (!peer) return; // Guard against double-fire
+    this.peers.delete(peerId);
+    try { peer.reliable.close(); } catch {}
+    try { peer.unreliable.close(); } catch {}
+    try { peer.pc.close(); } catch {}
+    this.emit('peer-left', peerId);
+  }
+
+  private safeSend(dc: RTCDataChannel, data: ArrayBuffer | string) {
+    try {
+      if (dc.readyState !== 'open') return;
+      if (dc.bufferedAmount > 65536) {
+        dc.bufferedAmountLowThreshold = 16384;
+        dc.addEventListener('bufferedamountlow', () => {
+          try { dc.send(data as any); } catch {}
+        }, { once: true });
+        return;
+      }
+      dc.send(data as any);
+    } catch {
+      // Channel closed between check and send (race condition)
     }
   }
 
   broadcastReliable(data: ArrayBuffer | string) {
-    for (const [peerId, peer] of this.peers.entries()) {
-      if (peer.reliable.readyState === 'open') {
-        peer.reliable.send(data as any);
-      }
+    for (const [, peer] of this.peers.entries()) {
+      this.safeSend(peer.reliable, data);
     }
   }
 
   broadcastUnreliable(data: ArrayBuffer | string) {
-    for (const [peerId, peer] of this.peers.entries()) {
-      if (peer.unreliable.readyState === 'open') {
-        peer.unreliable.send(data as any);
-      }
+    for (const [, peer] of this.peers.entries()) {
+      this.safeSend(peer.unreliable, data);
     }
   }
 
   sendTo(peerId: string, data: ArrayBuffer | string, reliable: boolean) {
     const peer = this.peers.get(peerId);
     if (peer) {
-      const channel = reliable ? peer.reliable : peer.unreliable;
-      if (channel.readyState === 'open') {
-        channel.send(data as any);
-      }
+      this.safeSend(reliable ? peer.reliable : peer.unreliable, data);
     }
   }
 
