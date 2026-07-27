@@ -178,19 +178,40 @@ export class NetworkManager extends EventEmitter {
     this.emit('peer-left', peerId);
   }
 
+  private sendQueues: Map<RTCDataChannel, Array<ArrayBuffer | string>> = new Map();
+
   private safeSend(dc: RTCDataChannel, data: ArrayBuffer | string) {
     try {
       if (dc.readyState !== 'open') return;
       if (dc.bufferedAmount > 65536) {
-        dc.bufferedAmountLowThreshold = 16384;
-        dc.addEventListener('bufferedamountlow', () => {
-          try { dc.send(data as any); } catch {}
-        }, { once: true });
+        // Queue the message
+        let queue = this.sendQueues.get(dc);
+        if (!queue) {
+          queue = [];
+          this.sendQueues.set(dc, queue);
+          dc.bufferedAmountLowThreshold = 16384;
+          dc.addEventListener('bufferedamountlow', () => {
+            this.drainQueue(dc);
+          });
+        }
+        queue.push(data);
         return;
       }
       dc.send(data as any);
     } catch {
-      // Channel closed between check and send (race condition)
+      // Channel closed between check and send
+    }
+  }
+
+  private drainQueue(dc: RTCDataChannel) {
+    const queue = this.sendQueues.get(dc);
+    if (!queue) return;
+    while (queue.length > 0 && dc.bufferedAmount <= 65536) {
+      const item = queue.shift()!;
+      try { dc.send(item as any); } catch { break; }
+    }
+    if (queue.length === 0) {
+      this.sendQueues.delete(dc);
     }
   }
 

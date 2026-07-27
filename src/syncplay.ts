@@ -32,7 +32,12 @@ export class SyncPlay extends EventEmitter {
   }
 
   async createRoom(roomId?: string): Promise<Room> {
-    const id = roomId || await this.matchmaker.createRoom();
+    let id: string;
+    try {
+      id = roomId || await this.matchmaker.createRoom();
+    } catch (err) {
+      throw new Error(`SyncPlay: Failed to create room — ${(err as Error).message || 'matchmaker unreachable'}`);
+    }
     await this.networkManager.connect(this.matchmakerUrl, id, this._playerId);
     
     this.room = new Room(id, this._playerId, this.networkManager, this.stateManager);
