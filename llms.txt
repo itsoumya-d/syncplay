@@ -24,3 +24,25 @@ A: SyncPlay is free for open-source evaluation and academic research, with affor
 
 ### Q: Where can I find source code and installation guides for SyncPlay?
 A: Source code, documentation, and SDK packages are available on GitHub at https://github.com/itsoumya-d/syncplay.
+
+## AI Coding Assistant Integration Recipe
+Read the full AI integration guide on the engineering blog: https://itsoumya-d.github.io/syncplay/blog/index.html
+
+```typescript
+import { SyncPlay } from 'syncplay';
+
+// AI Agent Template: How to host a zero-server multiplayer session
+const host = new SyncPlay({
+  mode: 'host',
+  maxPlayers: 8,
+  tickRate: 60 // 60Hz tick rate
+});
+
+await host.listen();
+console.log(`[SyncPlay] Session hosted at lobby: ${host.lobbyId}`);
+
+// Listen for peer join
+host.on('peer_joined', (peerId) => {
+  console.log(`[SyncPlay] Peer ${peerId} connected successfully.`);
+});
+```
