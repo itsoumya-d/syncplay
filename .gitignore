@@ -1,3 +1,9 @@
 node_modules
 dist/*.map
 .env
+
+# Compiled Go matchmaker binaries — build them with `go build` or the Dockerfile.
+# Two ~7 MB Darwin/arm64 binaries were committed here, which is ~96% of the repo size.
+matchmaker/matchmaker
+matchmaker/syncplay-matchmaker
+matchmaker/*.exe

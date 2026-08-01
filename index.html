@@ -1,15 +1,24 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta name="keywords" content="free Photon Engine alternative, P2P multiplayer game engine WebRTC, reduce game server cost, host authority game state sync, Photon Engine ($95-$370/mo for CCU), PlayFab ($0.02/MAU), AWS GameLift">
-    <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SyncPlay | P2P Multiplayer Game State Sync</title>
-  <meta name="description" content="SyncPlay - The best free alternative to Photon Engine. Zero servers, P2P authority multiplayer state sync.">
-  <meta property="og:title" content="SyncPlay | P2P Multiplayer Sync">
-  <meta property="og:description" content="Zero servers. P2P authority. The free alternative to Photon Engine.">
+  <title>SyncPlay | P2P Multiplayer Game State Sync over WebRTC</title>
+  <meta name="description" content="SyncPlay replicates multiplayer game state peer-to-peer over WebRTC DataChannels, so you do not pay per concurrent user for a simulation server. Source-available under BSL 1.1; production use requires a paid license.">
+  <meta name="keywords" content="P2P multiplayer game engine, WebRTC DataChannel state sync, Photon Engine alternative, PlayFab alternative, browser multiplayer networking, JSON Patch delta sync">
+  <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1">
+  <link rel="canonical" href="https://itsoumya-d.github.io/syncplay/">
+  <meta name="author" content="Soumya Debnath">
+
+  <meta property="og:title" content="SyncPlay | P2P Multiplayer Game State Sync over WebRTC">
+  <meta property="og:description" content="Replicate multiplayer game state peer-to-peer over WebRTC DataChannels instead of paying per concurrent user. Source-available under BSL 1.1.">
   <meta property="og:type" content="website">
+  <meta property="og:url" content="https://itsoumya-d.github.io/syncplay/">
+  <meta property="og:site_name" content="SyncPlay">
+  <!-- summary rather than summary_large_image: there is no OG image asset in the repo. -->
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="SyncPlay | P2P Multiplayer Game State Sync over WebRTC">
+  <meta name="twitter:description" content="Replicate multiplayer game state peer-to-peer over WebRTC DataChannels. Source-available under BSL 1.1.">
   
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -21,7 +30,7 @@
     "@type": "SoftwareApplication",
     "name": "SyncPlay",
     "applicationCategory": "DeveloperApplication",
-    "description": "P2P Multiplayer Game State Sync engine with zero servers. The best free alternative to Photon Engine."
+    "description": "P2P Multiplayer Game State Sync engine with zero servers. The best alternative to Photon Engine."
   }
   </script>
   
@@ -675,11 +684,11 @@
     <div class="metrics">
       <div>
         <div class="metric-value" id="stat-sync">0</div>
-        <div class="metric-label">ms average sync time</div>
+        <div class="metric-label">runtime dependencies</div>
       </div>
       <div>
-        <div class="metric-value" id="stat-servers">0</div>
-        <div class="metric-label">Servers required</div>
+        <div class="metric-value" id="stat-servers">20</div>
+        <div class="metric-label">Hz default tick rate</div>
       </div>
       <div>
         <div class="metric-value">JSON Patch</div>
@@ -708,7 +717,7 @@
 
   <section class="container" id="cost">
     <h2 class="section-title">Cut infrastructure costs to zero</h2>
-    <p class="section-subtitle">What is the best free alternative to Photon Engine? SyncPlay replaces expensive server bills with efficient P2P networking.</p>
+    <p class="section-subtitle">What is the best alternative to Photon Engine? SyncPlay replaces expensive server bills with efficient P2P networking.</p>
     
     <table class="cost-table gsap-reveal">
       <thead>
@@ -855,7 +864,7 @@ console.log(`Lobby code: ${host.lobbyId}`);</code></pre>
 
   <footer>
     <div class="container">
-      <p>&copy; 2026 SyncPlay. All rights reserved. The ultimate free Photon Engine alternative.</p>
+      <p>&copy; 2026 SyncPlay. All rights reserved. Source-available under BSL 1.1 — production use requires a paid license.</p>
     </div>
   </footer>
 
@@ -898,8 +907,9 @@ console.log(`Lobby code: ${host.lobbyId}`);</code></pre>
       start: "top 80%",
       once: true,
       onEnter: () => {
-        new countUp.CountUp('stat-sync', 16, { prefix: '<' }).start();
-        new countUp.CountUp('stat-servers', 0).start();
+        // Values must match the static markup so a non-JS fetch reads the same numbers.
+        new countUp.CountUp('stat-sync', 0).start();
+        new countUp.CountUp('stat-servers', 20).start();
       }
     });
 

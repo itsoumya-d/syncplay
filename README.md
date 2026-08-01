@@ -2,7 +2,7 @@
 // Copyright (c) 2024-2026 Soumya Debnath. All Rights Reserved.
 // Licensed under the Business Source License 1.1 (BSL 1.1).
 // See LICENSE file for details. Production use requires a paid license.
-// Contact: soumyadebnath1661@gmail.com | +91 7031648617
+// Contact: soumyadebnath1661@gmail.com
 -->
 
 # SyncPlay
@@ -38,9 +38,13 @@ Traditional multiplayer games use dedicated game servers (like AWS GameLift). Th
 - **Cheap Matchmaking**: The only backend required is a lightweight Matchmaker (provided in Go) that helps players exchange WebRTC SDP offers and ICE candidates.
 - **Delta Sync**: State changes are computed automatically and transmitted using tiny JSON Patch arrays, minimizing bandwidth.
 
-**Cost Comparison (1000 Concurrent Players):**
+**Cost Comparison (1000 Concurrent Players):** these are list-price estimates for the
+compared vendors plus the cost of a small VPS for signalling. They are not benchmark
+results, and they exclude the TURN relay bandwidth you will need for peers behind
+symmetric NAT.
 - Dedicated Servers (Photon / PlayFab): ~$50 - $200+ / month
-- **SyncPlay**: ~$5 / month (only need a tiny VPS for the Matchmaker/Signaling)
+- **SyncPlay**: ~$5 / month for the signalling VPS, plus a BSL commercial licence for
+  production use (see pricing below), plus TURN egress if you add a relay.
 
 ## Architecture
 
@@ -64,8 +68,13 @@ graph TD
 ```
 
 1. **Matchmaker (Signaling Server)**: Exists solely to group players into rooms and facilitate the WebRTC handshake.
-2. **Host**: The room creator. Holds the authoritative `StateManager`. Sends state patches down to clients, validates client inputs.
-3. **Clients**: Connect to the host. They send inputs (e.g., "move left") to the host and receive authoritative state updates. They apply `Interpolator` logic to smooth out movement between network ticks.
+2. **Host**: The room creator. Holds the first `StateManager` and is elected as `hostId`.
+   **Note:** the engine does *not* validate inbound patches beyond rejecting malformed
+   and unsafe paths. Any peer's patch is applied to your local state tree as-is. See
+   [Known Limitations](#known-limitations).
+3. **Clients**: Connect over WebRTC and exchange state patches. There is no built-in
+   input-command channel; you send your own messages and let the host mutate state via
+   `setState()`. `Interpolator` is a pure lerp helper you call from your render loop.
 
 ---
 
@@ -83,7 +92,8 @@ The core engine class.
 
 #### `constructor(matchmakerUrl: string, options?: SyncPlayOptions)`
 - `matchmakerUrl`: URL to the signaling server (e.g., `wss://signaling.example.com`).
-- `options`: `{ tickRate: 20, maxPlayers: 8 }`
+  Must be a string — passing an options object as the first argument throws a `TypeError`.
+- `options`: see [Configuration Options](#configuration-options).
 
 #### `createRoom(roomId?: string): Promise<Room>`
 Creates a new room. The calling player becomes the Host (`_isHost = true`).
@@ -91,15 +101,37 @@ Creates a new room. The calling player becomes the Host (`_isHost = true`).
 #### `joinRoom(roomId: string): Promise<Room>`
 Joins an existing room. The calling player becomes a Client.
 
-#### `setState(path: string, value: any): void`
-*Host Only.* Updates the game state at a specific JSON path and automatically broadcasts a patch to all clients.
+#### `setState(path: string, value: any): boolean`
+Updates local game state at a JSON Pointer path and queues a patch, which is flushed to
+all peers on the next tick over the **reliable** channel. Returns `false` (and changes
+nothing) when the path is rejected — non-string, empty, traversing a scalar, or containing
+`__proto__` / `constructor` / `prototype`.
 Example: `syncplay.setState('/players/123/x', 50)`
+
+Any peer may call this; there is no host-only enforcement.
 
 #### `getState(path?: string): any`
 Returns the local copy of the game state.
 
+#### Events
+Subscribe with `engine.on(event, cb)` and unsubscribe with `engine.off(event, cb)`.
+
+| Event | Payload | Meaning |
+|---|---|---|
+| `peer-joined` | `peerId` | A peer's reliable channel opened. |
+| `peer-left` | `peerId` | A peer disconnected or was torn down. |
+| `peer-failed` | `SyncPlayNetworkError` | ICE failed (`ice-failed`) or the handshake timed out (`peer-handshake-timeout`). **Distinct from `peer-left`.** |
+| `signaling-closed` | `SyncPlayNetworkError` | The signalling socket closed mid-session. |
+| `error` | `SyncPlayNetworkError` | Any other transport-level fault. |
+| `state-update` | `StatePatch[]` | Patches received from a peer and applied. |
+| `patches-rejected` | `{ peerId, count, patches }` | Inbound patches that failed validation. |
+| `patches-dropped` | `{ total, reason }` | The pending-patch buffer overflowed. |
+| `peer-rejected` | `{ peerId, reason }` | A peer was refused, e.g. `room-full`. |
+| `host-changed` / `host-migrated` | `hostId` | `hostId` was recomputed; `host-migrated` fires only when *you* became host. |
+| `tick` | – | One game-loop tick. |
+
 #### Properties
-- `playerId: string` (Your unique ID)
+- `playerId: string` (128-bit random hex ID)
 - `isHost: boolean` (Are you the authoritative host?)
 - `playerCount: number`
 
@@ -109,65 +141,84 @@ Handles the JSON Patch logic.
 - `on('state_changed', callback)`: Fired when state updates.
 
 ### `Interpolator`
-Provides utilities for client-side prediction and smoothing.
-- `Interpolator.lerp(start, end, t)`
-- `interpolatePosition(current, target, t)`
+A pure, stateless lerp helper for smoothing rendered positions. It does **not** implement
+client-side prediction, snapshot buffering, or server reconciliation.
+- `Interpolator.lerp(start, end, t)` — `t` is clamped to `[0, 1]`
+- `Interpolator.interpolatePosition(current, target, t)` — static; also available on an instance
 
 ## Multiplayer Game Examples
 
 ### Basic 2D Movement
+
 ```typescript
 import { SyncPlay, Interpolator } from 'https://cdn.jsdelivr.net/gh/itsoumya-d/syncplay@main/dist/index.mjs';
 
-const engine = new SyncPlay('wss://match.mygame.com');
+const engine = new SyncPlay('wss://match.mygame.com', { tickRate: 20, maxPlayers: 8 });
 
-// Create or Join
+// Always subscribe to failures first — ICE failure is reported separately from
+// a player voluntarily leaving.
+engine.on('error',       (err) => console.error(err.code, err.message));
+engine.on('peer-failed', (err) => console.error('peer unreachable:', err.code, err.peerId));
+
+// Create or join
+let room;
 if (window.location.hash) {
-  await engine.joinRoom(window.location.hash.slice(1));
+  room = await engine.joinRoom(window.location.hash.slice(1));
 } else {
-  const room = await engine.createRoom();
+  room = await engine.createRoom();
   window.location.hash = room.id;
 }
 
-// Host Logic
+// Seed state on whichever peer is currently host
 if (engine.isHost) {
   engine.setState('/players', {});
-  
-  engine.on('player_join', (id) => {
-     engine.setState(`/players/${id}`, { x: 0, y: 0 });
-  });
-
-  engine.on('client_input', (id, input) => {
-      const current = engine.getState(`/players/${id}`);
-      if (input.key === 'ArrowUp') current.y -= 5;
-      engine.setState(`/players/${id}`, current);
-  });
 }
 
-// Client Logic
+// A peer connected: give it a spawn point (host only, by your own convention)
+engine.on('peer-joined', (id) => {
+  if (engine.isHost) engine.setState(`/players/${id}`, { x: 0, y: 0 });
+});
+
+// Apply inbound state from peers
+engine.on('state-update', (patches) => {
+  // state is already applied; use this to trigger rendering
+});
+
+// Send your own movement by writing to your own subtree
+document.addEventListener('keydown', (e) => {
+  const me = engine.getState(`/players/${engine.playerId}`) ?? { x: 0, y: 0 };
+  if (e.key === 'ArrowUp') me.y -= 5;
+  engine.setState(`/players/${engine.playerId}`, me);
+});
+
+// Render loop: smooth towards the networked position
 let localX = 0, localY = 0;
-setInterval(() => {
-   engine.sendInput({ key: 'ArrowUp' });
-   
-   const authState = engine.getState(`/players/${engine.playerId}`);
-   if (authState) {
-       const newPos = Interpolator.interpolatePosition(
-           {x: localX, y: localY}, 
-           authState, 
-           0.2
-       );
-       localX = newPos.x;
-       localY = newPos.y;
-       renderPlayer(localX, localY);
-   }
-}, 16);
+function frame() {
+  const target = engine.getState(`/players/${engine.playerId}`);
+  if (target) {
+    const p = Interpolator.interpolatePosition({ x: localX, y: localY }, target, 0.2);
+    localX = p.x; localY = p.y;
+    renderPlayer(localX, localY);
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
 ```
+
+> **There is no `sendInput()` method and no `client_input` event.** Earlier revisions of
+> this README showed both; neither has ever existed. Peers communicate by writing to the
+> shared state tree with `setState()`.
 
 ## How it Works Internally
 
 1. **State Deltas**: When the host calls `setState('/enemies/5/hp', 90)`, the `StateManager` generates a patch: `[{ "op": "replace", "path": "/enemies/5/hp", "value": 90 }]`. This minimizes bandwidth.
-2. **Tick Rate**: State patches are buffered and flushed at the configured `tickRate` (default 20 times per second) via the `NetworkManager`'s reliable channel.
-3. **Unreliable Channels**: For volatile data like player rotation or mouse positions where dropped packets are acceptable, SyncPlay exposes `broadcastUnreliable()`.
+2. **Tick Rate**: State patches are buffered and flushed at the configured `tickRate`
+   (default 20 Hz) over the **reliable, ordered** channel. State deltas are cumulative, so a
+   dropped patch would desync peers permanently — they must not travel on a lossy channel.
+3. **Unreliable Channels**: For volatile data like rotation or cursor position, where the
+   next tick supersedes a dropped packet, use `room`'s NetworkManager `broadcastUnreliable()`.
+   Note there is no sequence number or tick index on the wire, so out-of-order delivery on
+   this channel cannot be detected or corrected by the engine.
 
 ## Comparison with Competitors
 
@@ -188,7 +239,24 @@ Instead of snapping entities directly to their `getState()` position, you interp
 ## Deployment Guide
 
 ### Matchmaker (Signaling Server)
-The provided Matchmaker is written in Go and uses standard WebSockets.
+
+> **The Go server in `matchmaker/` is NOT a working signalling server.** It registers exactly
+> one route, `POST /api/rooms`, which mints a room ID. It contains no WebSocket upgrade
+> handler (`go.mod` has no `require` block and `go.sum` is empty, so there is no
+> `gorilla/websocket` dependency). The client connects to `ws://<host>/ws/<roomId>/<playerId>`,
+> which this server answers with `404`. **You must supply your own signalling server.**
+>
+> It must, at minimum:
+> - accept `GET /ws/{roomId}/{playerId}` and upgrade to WebSocket;
+> - on join, send `{"type":"peer-joined","peerId":"<other>"}` to each existing member and
+>   to the newcomer for each existing member;
+> - relay `offer` / `answer` / `ice-candidate` messages, rewriting the sender's `target`
+>   field into a `peerId` field on the message delivered to the recipient;
+> - on disconnect, send `{"type":"peer-left","peerId":"<gone>"}` to the remaining members.
+>
+> `POST /api/rooms` must return `{"roomId":"<string>"}`.
+
+The Go code that *is* provided builds and runs, and is useful only as the room-ID endpoint.
 
 1. **Build via Docker:**
    ```bash
@@ -206,25 +274,42 @@ The provided Matchmaker is written in Go and uses standard WebSockets.
    server {
        listen 443 ssl;
        server_name match.yourgame.com;
-       
+
        location /ws {
            proxy_pass http://localhost:8080/ws;
+           proxy_http_version 1.1;
            proxy_set_header Upgrade $http_upgrade;
            proxy_set_header Connection "Upgrade";
+           proxy_read_timeout 3600s;
+       }
+
+       # Required as well — the previous snippet omitted this, so createRoom() 404'd.
+       location /api/ {
+           proxy_pass http://localhost:8080/api/;
        }
    }
    ```
+   `proxy_http_version 1.1` is mandatory; without it nginx speaks HTTP/1.0 upstream and the
+   WebSocket upgrade fails.
 
 ## Configuration Options
 
 ```typescript
 export interface SyncPlayOptions {
-  maxPlayers?: number;       // Default: 8
-  tickRate?: number;         // Server tick rate in Hz. Default: 20
-  iceServers?: RTCIceServer[]; // STUN/TURN config
-  autoReconnect?: boolean;   // Default: true
+  maxPlayers?: number;              // Default: unlimited
+  tickRate?: number;                // Patch-flush frequency in Hz. Default: 20
+  iceServers?: RTCIceServer[];      // Default: public STUN only (no TURN)
+  signalingTimeoutMs?: number;      // Default: 15000
+  peerHandshakeTimeoutMs?: number;  // Default: 20000
+  matchmakerTimeoutMs?: number;     // Default: 10000
+  autoStartGameLoop?: boolean;      // Default: true
+  licenseKey?: string;              // Or COMMERCIAL_LICENSE_KEY env var
+  allowEval?: boolean;
 }
 ```
+
+There is **no** `autoReconnect` option. Nothing in the engine reconnects: if the signalling
+socket closes you get a `signaling-closed` event and must call `joinRoom()` again yourself.
 
 ---
 
@@ -235,20 +320,47 @@ export interface SyncPlayOptions {
   ```
   https://cdn.jsdelivr.net/gh/itsoumya-d/syncplay@main/dist/index.mjs
   ```
-- **No TURN relay — connections fail behind symmetric or carrier-grade NAT.** The ICE configuration uses public STUN servers only (Google and Cloudflare). STUN cannot traverse symmetric NAT (common on corporate networks) or many mobile carrier-grade NAT deployments; those peers cannot connect at all. There is currently no relay fallback. The failure is also **not clearly surfaced** — when `connectionState` becomes `'failed'` or `'disconnected'`, the code calls `handlePeerLeft()`, which emits the same `'peer-left'` event as a voluntary disconnect. Callers cannot distinguish "unreachable network" from "peer left the game". If you need reliable connectivity across arbitrary networks, pass your own TURN server in `iceServers`.
-- **Host migration is not implemented.** Despite what earlier documentation implied, there is no automatic host migration. When the host disconnects, the room closes. The FAQ entry about "future versions" supporting host migration is aspirational only.
-- **Single-host cheating.** The host player controls the authoritative state tree and can modify it arbitrarily. This is acceptable for co-op or private lobbies, but unsuitable for competitive games requiring server-side validation.
-- **Browser-only.** Node.js is not supported.
+- **No TURN relay by default — connections fail behind symmetric or carrier-grade NAT.**
+  The default ICE configuration is public STUN only (Google and Cloudflare). STUN cannot
+  traverse symmetric NAT (common on corporate networks) or many mobile carrier-grade NAT
+  deployments; those peers cannot connect at all. Pass your own TURN server via
+  `iceServers` if you need connectivity across arbitrary networks. ICE failure is now
+  reported on the **`peer-failed`** event with `code: 'ice-failed'`, separately from
+  `peer-left`, so you can tell the two apart.
+- **No signalling server is included.** See [Deployment Guide](#deployment-guide).
+- **No reconnection.** There is no retry, backoff, or reconnect logic anywhere. When the
+  signalling socket drops you get `signaling-closed` and must re-join yourself.
+- **No authority enforcement, and "host authority" is advisory only.** `hostId` is elected
+  as the lexicographically smallest player ID and is used for nothing except the
+  `isHost` getter. Every peer applies every other peer's patches to its own state tree
+  with no ownership, range, or rate checks. `_playerId` is a public writable field, so a
+  peer can also assign itself a low ID and win the host election. Suitable for co-op and
+  private lobbies only — **not** for anything competitive or ranked.
+- **No prediction, rollback, or lockstep.** State patches carry no tick index, sequence
+  number, sender ID, or timestamp. The engine is last-write-wins state replication, not
+  a rollback/GGPO-style netcode. `Interpolator` is a lerp helper, not a prediction system.
+- **Partial JSON Patch.** Only `add`, `replace` and `remove` are implemented. `move`,
+  `copy` and `test` are rejected with a `patches-rejected` event. RFC 6901 `~0`/`~1`
+  pointer escaping is supported; array index and `-` append semantics are not.
+- **Host migration is only partial.** `hostId` is recomputed when the peer list changes and
+  `host-changed` / `host-migrated` fire, but **no state is transferred and the new host is
+  never announced to the other peers over the wire.** Do not rely on it.
+- **Browser-only.** Node.js is not supported (no `RTCPeerConnection`).
 
 ---
 
 ## FAQ
 
 **Q: Can clients cheat?**
-A: Since one client is the Host, they have the technical ability to modify memory and cheat (e.g., give themselves infinite health). For competitive games with matchmaking, you should use dedicated servers. SyncPlay is designed for co-op games, private lobbies, or casual games where host-cheating is acceptable.
+A: Yes, trivially, and not only the host. Every peer applies every other peer's patches
+without validation, and nothing stops a peer from claiming to be the host. Use SyncPlay for
+co-op, private lobbies, or casual games only. For anything competitive, run a dedicated
+authoritative server.
 
 **Q: What happens if the Host disconnects?**
-A: Currently, the room closes. Host migration is not implemented.
+A: The remaining peers each recompute `hostId` locally (lowest player ID wins) and fire
+`host-changed`. No game state is transferred and the decision is not confirmed over the
+wire, so treat this as a hint, not a working host-migration feature.
 
 **Q: Does this work on Mobile?**
 A: Yes. WebRTC DataChannels are fully supported on iOS Safari and Android Chrome, subject to the NAT limitations described above.
@@ -259,7 +371,6 @@ A: Yes. WebRTC DataChannels are fully supported on iOS Safari and Android Chrome
 
 **Author:** Soumya Debnath
 **Email:** soumyadebnath1661@gmail.com
-**Phone:** +91 7031648617
 
 ---
 
@@ -278,6 +389,6 @@ A: Yes. WebRTC DataChannels are fully supported on iOS Safari and Android Chrome
 
 **Free use limited to:** Personal evaluation, academic research, contributing via PRs.
 
-[soumyadebnath1661@gmail.com](mailto:soumyadebnath1661@gmail.com) · [+91 7031648617](tel:+917031648617) · [github.com/itsoumya-d](https://github.com/itsoumya-d)
+[soumyadebnath1661@gmail.com](mailto:soumyadebnath1661@gmail.com) · [github.com/itsoumya-d](https://github.com/itsoumya-d)
 
 © 2024-2026 Soumya Debnath. All Rights Reserved.

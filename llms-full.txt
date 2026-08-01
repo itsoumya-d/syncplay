@@ -1,19 +1,48 @@
 # SyncPlay — Full AI Context
 
-> P2P host-authoritative multiplayer game state engine for the browser. Pre-release. Not on npm.
+> P2P multiplayer game state replication for the browser over WebRTC DataChannels. Last-write-wins state replication, not rollback netcode. Pre-release. Not on npm.
 
-SyncPlay synchronizes real-time multiplayer game state over WebRTC DataChannels with a host-authority model, JSON Patch deltas (RFC 6902), and client-side interpolation. One player acts as the authoritative host; others connect directly via WebRTC. A lightweight Go matchmaker server handles WebRTC signaling only.
+SyncPlay connects browser peers over WebRTC DataChannels and replicates a shared JSON state tree between them as JSON Pointer deltas. It does not implement prediction, rollback, lockstep, or server-side validation, and it does not include a signalling server.
 
 ## Status & Availability
-- Pre-release. API may change.
+- Pre-release. API may change without notice.
 - Not published on npm. The package name `syncplay` is not registered on npm.
 - No production adopters are known.
-- License: Business Source License 1.1 (BSL 1.1). Free for evaluation and academic research; commercial use requires a paid license (contact soumyadebnath1661@gmail.com).
+- License: Business Source License 1.1 (BSL 1.1). Source-available, **not** OSI open-source. Change Date 2030-07-26, after which it becomes AGPLv3. Free for evaluation and academic research; production use of any kind requires a paid license (contact soumyadebnath1661@gmail.com).
+- Zero runtime dependencies. Two devDependencies: `tsup`, `typescript`.
+- `npm run build`, `npm run typecheck` and `npm test` all pass on Node.js 24.
 
-## Real Exported Symbols (from dist/index.d.ts)
-- `SyncPlay` — main engine class
-- `Interpolator` — client-side position interpolation utilities (static methods)
-- Additional symbols re-exported from internal modules via `export *`
+## Netcode model — read this before integrating
+SyncPlay is **not** a rollback / GGPO-style or lockstep engine, and there is no client-side
+prediction or server reconciliation. The wire format is:
+
+```json
+{ "type": "state-patch", "patches": [ { "op": "replace", "path": "/players/a/x", "value": 12 } ] }
+```
+
+There is no tick index, sequence number, sender ID, or timestamp. Consequences:
+- Out-of-order or replayed frames cannot be detected. A late frame overwrites newer state.
+- Two peers that receive the same patches in different orders converge to different state,
+  and there is no reconciliation pass to repair it.
+- Deltas are cumulative, so they are sent on the **reliable, ordered** channel. Putting them
+  on the unreliable channel would make a single dropped packet a permanent desync.
+- Nothing in the library measures latency, so it cannot report RTT, jitter, or sync time.
+
+`Interpolator` is a stateless clamped-lerp helper. It does not buffer snapshots, does not
+interpolate over time, and does not perform prediction or snap-back reconciliation.
+
+## Security model — read this too
+- **No authority enforcement.** `hostId` is elected as the lexicographically smallest player
+  ID and is used only by the `isHost` getter. Every peer applies every other peer's patches
+  to its own state tree with no ownership check, type check, range clamp, size cap, or rate
+  limit. A peer can set any path to any value.
+- **Host election is not authenticated.** `SyncPlay._playerId` is a public writable field, so
+  a peer can assign itself a low ID before joining and win the election.
+- **Prototype pollution is blocked.** Paths containing `__proto__`, `constructor` or
+  `prototype` are rejected by `StateManager`, so an inbound patch cannot reach
+  `Object.prototype`. `setState()` returns `false` for these.
+- Use for co-op, private lobbies, and casual games. Do **not** use for competitive, ranked,
+  or wagered play without an authoritative server in front.
 
 ## Installation
 No npm install. Two options:
@@ -29,66 +58,137 @@ No npm install. Two options:
 **Build from source:**
 ```bash
 git clone https://github.com/itsoumya-d/syncplay.git
-cd syncplay && npm install && npm run build
+cd syncplay && npm install && npm run build && npm test
 ```
 
-## Integration Recipe (verified against dist/index.js in Node.js 24)
+## Real Exported Symbols (from dist/index.d.ts)
+- `SyncPlay` — main engine class
+- `Interpolator` — `static lerp(start, end, t)`, `static interpolatePosition(current, target, t)` (also available on an instance)
+- `StateManager` — JSON Pointer delta store
+- `Room` — membership, tick loop, event surface
+- `NetworkManager` — WebRTC/WebSocket transport
+- `MatchmakerClient` — client for `POST /api/rooms`
+- `SyncPlayNetworkError` — typed transport error
+- `EventEmitter`, `MAX_PENDING_PATCHES`
+- Types: `StatePatch`, `SyncPlayOptions`, `Vec2`, `EventCallback`, `LicenseValidationOptions`
+
+## Integration Recipe
 
 ```typescript
 import { SyncPlay, Interpolator } from
   'https://cdn.jsdelivr.net/gh/itsoumya-d/syncplay@main/dist/index.mjs';
 
-const engine = new SyncPlay('wss://your-matchmaker.example.com', {
+const engine = new SyncPlay('wss://your-signalling-server.example.com', {
   tickRate: 20,
   maxPlayers: 8,
 });
 
-// Host flow
-const room = await engine.createRoom();
-engine.setState('/players', {});
-engine.on('player_join', (id) => engine.setState(`/players/${id}`, { x: 0, y: 0 }));
+// Always attach failure handlers first.
+engine.on('error',            (err) => console.error(err.code, err.message));
+engine.on('peer-failed',      (err) => console.error('unreachable peer', err.peerId, err.code));
+engine.on('signaling-closed', (err) => console.error('signalling died', err.message));
 
-// Client flow (in another browser)
-// const room = await engine.joinRoom('room-id');
+const room = await engine.createRoom();          // or engine.joinRoom('ROOM-ID')
 
-// Client-side interpolation
+engine.on('peer-joined', (id) => {
+  if (engine.isHost) engine.setState(`/players/${id}`, { x: 0, y: 0 });
+});
+engine.on('state-update', (patches) => { /* already applied; trigger a render */ });
+
+engine.setState(`/players/${engine.playerId}`, { x: 10, y: 4 });
+
 const pos = engine.getState(`/players/${engine.playerId}`);
 if (pos) {
-  const smoothed = Interpolator.interpolatePosition(localPos, pos, 0.2);
+  const smoothed = Interpolator.interpolatePosition({ x: 0, y: 0 }, pos, 0.2);
 }
 ```
 
 ## SyncPlay Public API
-- `constructor(matchmakerUrl: string, options?: SyncPlayOptions)` — tickRate (default 20), maxPlayers (default 8), iceServers, autoReconnect
-- `createRoom(roomId?: string): Promise<Room>` — creates a room, caller becomes Host
-- `joinRoom(roomId: string): Promise<Room>` — joins existing room, caller becomes Client
-- `leaveRoom(): Promise<void>` — disconnect and clean up
-- `setState(path: string, value: any): void` — set game state at JSON pointer path; auto-broadcasts delta to peers
-- `getState(path?: string): any` — read game state; no argument returns full tree
-- `playerId: string` — read-only unique player ID
-- `isHost: boolean` — true if this player is the current host
-- `playerCount: number` — current number of connected players
-- `room: Room | null` — current room object, null before createRoom/joinRoom
+- `constructor(matchmakerUrl: string, options?: SyncPlayOptions)` — the first argument must be a non-empty string; passing an options object throws `TypeError`.
+- `createRoom(roomId?: string): Promise<Room>` — mints a room via `POST /api/rooms` unless you pass an ID, then connects. Rejects with a descriptive `Error` on HTTP failure, non-JSON body, or a response missing a non-empty string `roomId`.
+- `joinRoom(roomId: string): Promise<Room>` — connects to an existing room. Rejects with `SyncPlayNetworkError` on signalling failure or timeout.
+- `leaveRoom(): Promise<void>` — stops the tick loop, detaches the room's listeners, closes every peer connection and the signalling socket.
+- `setState(path: string, value: any): boolean` — writes local state and queues a delta. Returns `false` when the path is rejected.
+- `getState(path?: string): any` — reads state; no argument returns the whole tree.
+- `playerId: string` — 128-bit random hex ID (32 chars).
+- `isHost: boolean` — whether `hostId` currently equals `playerId`.
+- `playerCount: number` — members in the room, local player included.
+- `room: Room | null` — null before `createRoom`/`joinRoom`.
 
-## Interpolator API (static methods)
-- `Interpolator.lerp(start: number, end: number, t: number): number` — linear interpolation
-- `Interpolator.interpolatePosition(current: {x,y}, target: {x,y}, t: number): {x,y}` — smooth position update
+### SyncPlayOptions
+| Option | Default | Effect |
+|---|---|---|
+| `tickRate` | `20` | Patch-flush frequency in Hz. |
+| `maxPlayers` | unlimited | Hard cap on room members; excess peers raise `peer-rejected`. |
+| `iceServers` | public STUN only | Pass a TURN entry for symmetric/CGNAT connectivity. |
+| `signalingTimeoutMs` | `15000` | Budget for the signalling socket to open. |
+| `peerHandshakeTimeoutMs` | `20000` | Budget for a peer's WebRTC handshake. |
+| `matchmakerTimeoutMs` | `10000` | Budget for `POST /api/rooms`. |
+| `autoStartGameLoop` | `true` | Start the tick loop on room creation/join. |
+| `licenseKey` | `COMMERCIAL_LICENSE_KEY` env | BSL commercial key. |
+| `allowEval` | `false` | Skip the license notice. |
+
+There is **no** `autoReconnect` option and no reconnect logic of any kind.
+
+## Events
+`engine.on(event, cb)` / `engine.off(event, cb)`. A throwing listener no longer prevents
+later listeners from running.
+
+| Event | Payload | Meaning |
+|---|---|---|
+| `peer-joined` | `peerId` | Reliable channel opened. |
+| `peer-left` | `peerId` | Peer disconnected or was torn down. |
+| `peer-failed` | `SyncPlayNetworkError` | `ice-failed` or `peer-handshake-timeout`. Distinct from `peer-left`. |
+| `signaling-closed` | `SyncPlayNetworkError` | Signalling socket closed mid-session. |
+| `error` | `SyncPlayNetworkError` | Other transport fault. |
+| `state-update` | `StatePatch[]` | Patches received and applied. |
+| `patches-rejected` | `{ peerId, count, patches }` | Inbound patches that failed validation. |
+| `patches-dropped` | `{ total, reason }` | Pending buffer overflowed (cap `MAX_PENDING_PATCHES` = 10000). |
+| `peer-rejected` | `{ peerId, reason }` | Peer refused, e.g. `room-full`. |
+| `host-changed` / `host-migrated` | `hostId` | `hostId` recomputed; `host-migrated` only when you became host. |
+| `tick` | – | One game-loop tick. |
+
+## Signalling server — you must supply this
+The Go program in `matchmaker/` is **not** a signalling server. It registers exactly one
+route, `POST /api/rooms`, and has no WebSocket upgrade handler. The client dials
+`ws://<host>/ws/<roomId>/<playerId>`, which that server answers with 404.
+
+Your signalling server must:
+1. Accept `GET /ws/{roomId}/{playerId}` and upgrade to WebSocket.
+2. On join, send `{"type":"peer-joined","peerId":"<other>"}` to each existing member and to
+   the newcomer for each existing member.
+3. Relay `offer`, `answer` and `ice-candidate` messages, rewriting the sender's `target`
+   field into a `peerId` field on the delivered message.
+4. On disconnect, send `{"type":"peer-left","peerId":"<gone>"}` to remaining members.
+5. Answer `POST /api/rooms` with `{"roomId":"<string>"}`.
 
 ## WebRTC DataChannels
 Two channels per peer connection:
-- `reliable` (`ordered: true`) — state patches, critical events
-- `unreliable` (`ordered: false, maxRetransmits: 0`) — position/rotation data where freshness beats completeness
+- `reliable` (`ordered: true`) — carries state deltas and any critical event.
+- `unreliable` (`ordered: false, maxRetransmits: 0`) — available via
+  `NetworkManager.broadcastUnreliable()` for volatile data. No ordering or dedup is applied.
 
 ## State Sync
-JSON Patch (RFC 6902) deltas are computed on `setState()`, buffered, and flushed at `tickRate` Hz over the reliable channel. Full state is not transmitted — only the changed path and value.
+JSON Pointer (RFC 6901) paths, with `~0` and `~1` escaping decoded. Only the `add`,
+`replace` and `remove` operations of RFC 6902 are implemented; `move`, `copy` and `test` are
+rejected and surfaced on `patches-rejected`. Array index and `-` append semantics are not
+implemented. Only the changed path and value are transmitted, never the full tree.
 
 ## Known Limitations
-- Not on npm. Must use CDN or build from source.
-- Browser-only. No Node.js support.
-- No TURN relay. STUN-only ICE. Connections fail on symmetric or carrier-grade NAT without a user-supplied TURN server. ICE failure is indistinguishable from voluntary disconnect (`connectionState === 'failed'` maps to `handlePeerLeft()`, emitting `'peer-left'`).
-- Host migration not implemented. Room closes when host disconnects.
-- Host can cheat. The host controls the authoritative state tree. Not suitable for competitive games without a dedicated server.
-- Pre-release: API may change without notice.
+- Not on npm. Use the CDN or build from source.
+- Browser-only. No Node.js support (`RTCPeerConnection` does not exist there).
+- No signalling server included; see above.
+- No TURN relay by default. STUN-only ICE fails on symmetric or carrier-grade NAT unless you
+  supply `iceServers` with a TURN entry. ICE failure is reported on `peer-failed` with
+  `code: 'ice-failed'`.
+- No reconnect, retry, or backoff anywhere.
+- No prediction, rollback, lockstep, or determinism guarantees; no tick/sequence numbering.
+- No authority enforcement, no input validation beyond path safety, no rate limiting.
+- Host migration is partial: `hostId` is recomputed locally but no state is transferred and
+  the decision is not confirmed over the wire.
+- WebRTC signalling glare is resolved with a lexicographic ID tiebreak rather than the
+  WHATWG "perfect negotiation" rollback pattern.
+- No published or reproducible benchmarks.
 
 ## Links
 - [Repository](https://github.com/itsoumya-d/syncplay)
