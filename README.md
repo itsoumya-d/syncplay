@@ -1,13 +1,13 @@
 <!--
 // Copyright (c) 2024-2026 Soumya Debnath. All Rights Reserved.
-// Licensed under the Business Source License 1.1 (BSL 1.1).
-// See LICENSE file for details. Production use requires a paid license.
+// Dual-licensed: AGPL-3.0-or-later (free, see LICENSE) OR a commercial licence
+// (see COMMERCIAL_LICENSE.md) if you cannot meet the AGPL's source-disclosure terms.
 // Contact: soumyadebnath1661@gmail.com
 -->
 
 # SyncPlay
 
-[![License: BSL 1.1](https://img.shields.io/badge/License-BSL_1.1-red.svg)](https://mariadb.com/bsl11/)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![Status](https://img.shields.io/badge/status-pre--release-orange.svg)](#known-limitations)
 
 > **SyncPlay synchronises multiplayer game state peer-to-peer with host authority, removing the per-concurrent-user cost of a hosted realtime backend.**
@@ -43,8 +43,8 @@ compared vendors plus the cost of a small VPS for signalling. They are not bench
 results, and they exclude the TURN relay bandwidth you will need for peers behind
 symmetric NAT.
 - Dedicated Servers (Photon / PlayFab): ~$50 - $200+ / month
-- **SyncPlay**: ~$5 / month for the signalling VPS, plus a BSL commercial licence for
-  production use (see pricing below), plus TURN egress if you add a relay.
+- **SyncPlay**: ~$5 / month for the signalling VPS, plus TURN egress if you add a relay.
+  The software itself is free under AGPL-3.0-or-later.
 
 ## Architecture
 
@@ -367,16 +367,25 @@ A: Yes. WebRTC DataChannels are fully supported on iOS Safari and Android Chrome
 
 ---
 
-## Author & License
+## 📄 License
 
-**Author:** Soumya Debnath
-**Email:** soumyadebnath1661@gmail.com
+**Dual-licensed — choose either:**
 
----
+1. **[AGPL-3.0-or-later](LICENSE)** — free for any purpose, including commercial and production
+   use. No payment, no permission, no key required. The obligation it carries: if you modify this
+   software and let users interact with it over a network, you must offer those users your modified
+   source under the same licence.
 
-## License — Business Source License 1.1
+2. **[Commercial licence](COMMERCIAL_LICENSE.md)** — for organisations that cannot or prefer not to
+   meet the AGPL's source-disclosure obligation. This buys an exception, not access.
 
-> **Source-available, NOT open-source. All production use requires a paid license.**
+Contributions are accepted under AGPL-3.0-or-later.
+
+## ⚖️ Commercial licence (optional)
+
+> **This software is free under [AGPL-3.0-or-later](LICENSE) — including for commercial and
+> production use.** The prices below buy one specific thing: an exception to the AGPL's requirement
+> that you publish your modifications if you run a modified version as a network service.
 > Replaces: Photon, PlayFab, GameLift
 
 | Tier | Price | For |
@@ -387,7 +396,7 @@ A: Yes. WebRTC DataChannels are fully supported on iOS Safari and Android Chrome
 | **OEM / White-Label** | $24,999/year | Embed in your product |
 | **Full IP Buyout** | $1,000,000 | Complete ownership transfer |
 
-**Free use limited to:** Personal evaluation, academic research, contributing via PRs.
+**Free under AGPL-3.0-or-later:** any use, including production and commercial, provided you meet the AGPL's terms.
 
 [soumyadebnath1661@gmail.com](mailto:soumyadebnath1661@gmail.com) · [github.com/itsoumya-d](https://github.com/itsoumya-d)
 
