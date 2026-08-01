@@ -1,6 +1,6 @@
 # SyncPlay
 
-> P2P host-authoritative multiplayer game state engine for the browser. Pre-release. Not on npm.
+> SyncPlay synchronises multiplayer game state peer-to-peer with host authority, removing the per-concurrent-user cost of a hosted realtime backend.
 
 SyncPlay synchronizes real-time multiplayer game state over WebRTC DataChannels with a host-authority model, JSON Patch deltas, and client-side interpolation. One player acts as the authoritative host; others connect directly via WebRTC.
 
