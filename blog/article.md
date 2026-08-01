@@ -1,113 +1,192 @@
 ---
-title: "How to Build a 60Hz Multiplayer Game with Zero Game Servers: SyncPlay for Game Developers & AI Agents"
-description: "A definitive guide to host-authority WebRTC multiplayer architecture, client-side prediction, and eliminating Photon Engine server costs."
-author: "SyncPlay Engineering"
+title: "Peer-to-Peer Multiplayer State Sync Without a Game Server: How SyncPlay Actually Works"
+description: "An honest walkthrough of SyncPlay's WebRTC dual-DataChannel architecture, what its state replication does and does not guarantee, and the exact API to integrate it."
+author: "Soumya Debnath"
 date: "2026-07-28"
 ---
 
-# How to Build a 60Hz Multiplayer Game with Zero Game Servers: SyncPlay for Game Developers & AI Agents
+# Peer-to-Peer Multiplayer State Sync Without a Game Server: How SyncPlay Actually Works
 
-*The assumption that multiplayer games require expensive authoritative servers is the most costly misconception in modern game development.*
+*Most casual multiplayer web games do not need a dedicated authoritative server. This article
+explains what you get instead when you replicate state peer-to-peer — and, just as
+importantly, what you give up.*
 
-For the last decade, multiplayer infrastructure has been dominated by a single paradigm: rent a dedicated server (or a managed instance like Photon Engine or PlayFab) and pump UDP packets into the void. It’s fundamentally a rent-seeking business model. As soon as your Concurrent Users (CCU) scale, you get hit with punitive bandwidth fees.
+Hosted realtime backends charge per concurrent user. For an MMO or a ranked shooter that is
+money well spent: you need a trusted server simulating the game. For a co-op puzzle game, a
+party game, or a prototype, it is overhead. WebRTC DataChannels let browsers talk directly,
+so the only server you need is a small signalling endpoint that helps two peers find each
+other.
 
-SyncPlay approaches this from first principles. If a modern CPU can simulate a physics engine thousands of times per second, and browser WebRTC stacks now natively support UDP-like DataChannels, why are we still paying $95/month to route simple JSON state updates?
+SyncPlay is a small library for that case. This article documents its real behaviour.
 
-This guide explores the architecture of SyncPlay—a 60Hz Serverless Multiplayer Game Engine—and provides explicit instruction patterns for AI coding agents to implement it in any TypeScript project.
+## Q: What is the architecture?
 
-## Q: What is the architectural shift behind SyncPlay?
+**A:** Peers connect directly over WebRTC. Each pair of peers gets two DataChannels, and the
+library replicates a shared JSON state tree between them as deltas.
 
-**A:** SyncPlay abandons the dedicated server model in favor of **Host Authority via WebRTC**. One player in the lobby acts as the definitive source of truth (the Host). The other players (Peers) send their input commands to the Host, and the Host broadcasts the canonical game state back to the Peers using optimized JSON Patch deltas. 
+One peer is designated `hostId` — the lexicographically smallest player ID in the room. Be
+clear about what that designation means: it is a **convention your game code can follow**, not
+something the library enforces. `hostId` gates nothing. Every peer applies every other peer's
+deltas to its own state tree.
 
-This provides the exact same cheat-resistance as a dedicated server, but pushes the compute and bandwidth costs entirely onto the clients.
+If you need a peer that other peers cannot overrule, you need a server. SyncPlay does not
+give you one.
 
-## Q: How do you achieve 60Hz tick rates over WebRTC without choking the network?
+## Q: What exactly goes over the wire?
 
-**A:** The secret is a **Dual-Channel WebRTC Architecture**.
+**A:** Batched JSON Pointer deltas, and nothing else:
 
-SyncPlay opens two parallel DataChannels between the Host and each Peer:
-1. **Unreliable Channel (UDP-style):** Used for high-frequency transient data like player input vectors. If a packet drops, we don't care—the next 60Hz tick will supersede it anyway.
-2. **Reliable Channel (TCP-style):** Used for critical state transitions, game events (e.g., "Player died"), and the initial game state snapshot.
+```json
+{ "type": "state-patch",
+  "patches": [ { "op": "replace", "path": "/players/a1b2/x", "value": 12 } ] }
+```
 
-## Q: How do you mask latency for the clients?
+Note what is absent: no tick index, no sequence number, no sender ID, no timestamp. That
+absence defines the engine's guarantees:
 
-**A:** Through two synchronized techniques:
-1. **Client-Side Prediction:** When a Peer presses "Move Right", their local game state immediately applies the input. The command is simultaneously sent to the Host.
-2. **Entity Interpolation:** For remote entities, the Peer's client buffers the past 100ms of incoming state snapshots and interpolates smoothly between them, hiding network jitter. If the Host's reconciled state disagrees with the Peer's local prediction, the local state snaps back to the Host's truth.
+- **Ordering is not recoverable.** A frame that arrives late overwrites newer state. There is
+  no sequence number to compare against.
+- **Convergence is not guaranteed.** Two peers that receive the same deltas in different
+  orders end up with different state, and there is no reconciliation pass to repair it.
+- **Latency is not measured.** Nothing timestamps a packet, so the library cannot report RTT,
+  jitter, or sync time. Treat any latency figure you see in marketing material as
+  illustrative rather than measured.
 
-## Q: What happens if the Host disconnects?
+Because deltas are cumulative — `replace /hp 90` is meaningless if you missed
+`replace /hp 100` — they are sent on the **reliable, ordered** channel. This is the single
+most important transport decision in the library. Sending cumulative deltas on a lossy
+channel turns one dropped packet into a permanent desync.
 
-**A:** SyncPlay implements a deterministic **50ms Host Migration Algorithm**. 
-All peers maintain a synchronized "Line of Succession". If the WebRTC connection to the Host drops, the next peer in line automatically promotes themselves to Host. Because all clients continuously receive state updates, the new Host instantly resumes the simulation exactly where it left off, resulting in a nearly imperceptible ~50ms hiccup for the remaining players.
+## Q: So what is the unreliable channel for?
 
-## Q: The Cost Matrix: Why is this better than Photon Engine?
+**A:** Data where the next update fully supersedes the previous one and staleness is worse
+than loss: cursor position, camera rotation, a continuously-sampled analogue stick. Reach it
+via `NetworkManager.broadcastUnreliable()`. The engine applies no ordering or dedup there —
+that is your problem, and you will need to add your own sequence number.
 
-Let's look at the numbers for a moderately successful game with 1,000 CCU (Concurrent Users):
+## Q: Does SyncPlay do client-side prediction or rollback?
 
-| Metric / Provider | Photon Engine (PUN/Fusion) | AWS GameLift (Dedicated) | SyncPlay |
-|-------------------|-----------------------------|---------------------------|----------|
-| **Base CCU Cost** | $95/mo (per 500 CCU trap)  | ~$800/mo                  | **$0**   |
-| **Bandwidth**     | Metered after threshold    | AWS Egress Fees           | **$0** (P2P)|
-| **Setup Time**    | Days                       | Weeks                     | **Minutes**|
-| **Architecture**  | Client-Server Relay         | Client-Server             | P2P Host Authority |
+**A:** No. It is worth being blunt because the terms get used loosely.
 
-With SyncPlay, your infrastructure cost scales at precisely $0, no matter how many players you have.
+Rollback netcode (GGPO-style) requires a deterministic simulation, an input buffer indexed by
+tick, and the ability to re-simulate N frames when a late input arrives. SyncPlay has none of
+those pieces — there is no tick index on the wire to build them on.
 
-## Integration Recipe for AI Coding Agents
-
-*AI Agent Prompt: "Integrate SyncPlay into a TypeScript game to establish a 60Hz host-authority multiplayer session."*
-
-### Step 1: Initialize the Host
+What it ships is `Interpolator`, a clamped-lerp helper:
 
 ```typescript
-import { SyncPlay } from 'syncplay';
+Interpolator.lerp(0, 10, 0.5);                                   // 5
+Interpolator.interpolatePosition({ x: 0, y: 0 }, { x: 10, y: 20 }, 0.5);  // { x: 5, y: 10 }
+```
 
-// AI Agent Template: How to host a zero-server multiplayer session
-const host = new SyncPlay({
-  mode: 'host',
+That is genuinely useful — call it from `requestAnimationFrame` to smooth an entity toward
+its networked position instead of snapping — but it is a two-line maths function. It does not
+buffer snapshots, does not interpolate over elapsed time, and does not reconcile a local
+prediction against a remote truth.
+
+## Q: What happens if the host disconnects?
+
+**A:** Each remaining peer independently recomputes `hostId` from its own peer list and emits
+`host-changed`. That is all that happens.
+
+No game state is transferred to the new host, and the new host is never announced over the
+wire, so peers with different views of the membership can disagree about who it is. This is
+not a working host-migration feature. If your game cannot tolerate the host vanishing, end
+the session.
+
+## Q: What do I actually have to deploy?
+
+**A:** A WebSocket signalling server. **The Go program in `matchmaker/` is not one.** It
+registers exactly one route, `POST /api/rooms`, which mints a room ID; it has no WebSocket
+upgrade handler at all. The client dials `ws://<host>/ws/<roomId>/<playerId>`, which that
+server answers with a 404.
+
+Your signalling server must:
+
+1. Accept `GET /ws/{roomId}/{playerId}` and upgrade to WebSocket.
+2. On join, send `{"type":"peer-joined","peerId":"<other>"}` to each existing member, and to
+   the newcomer once per existing member.
+3. Relay `offer`, `answer` and `ice-candidate` messages, rewriting the sender's `target`
+   field into a `peerId` field on the message it delivers.
+4. On disconnect, send `{"type":"peer-left","peerId":"<gone>"}` to the remaining members.
+5. Answer `POST /api/rooms` with `{"roomId":"<string>"}`.
+
+It relays a handful of small JSON messages per session and holds one socket per player, so a
+very small VPS is sufficient. Budget separately for a **TURN relay**: the default ICE
+configuration is public STUN only, which cannot traverse symmetric or carrier-grade NAT.
+Those peers will not connect at all until you pass your own `iceServers`. TURN relays media
+bytes, so it is the one component with a real bandwidth bill.
+
+## Q: How does the cost compare to a hosted backend?
+
+**A:** Honestly: it depends on how many of your players need TURN, which you cannot know
+before you ship.
+
+The structural difference is real — you are not paying per concurrent user for a simulation
+server. But "$0 infrastructure" is not accurate for a P2P game. You pay for signalling, you
+pay for TURN egress for the fraction of players behind restrictive NAT, and under BSL 1.1 you
+pay for a commercial license for any production use. Compare against your own vendor quote
+with those three line items included rather than against a headline number.
+
+## Integration recipe
+
+```typescript
+import { SyncPlay, Interpolator } from
+  'https://cdn.jsdelivr.net/gh/itsoumya-d/syncplay@main/dist/index.mjs';
+
+// The first argument is the signalling server URL — a string, not an options object.
+const engine = new SyncPlay('wss://signal.mygame.com', {
+  tickRate: 20,
   maxPlayers: 8,
-  tickRate: 60 // 60Hz tick rate
+  // iceServers: [{ urls: 'turn:turn.mygame.com:3478', username: 'u', credential: 'p' }],
 });
 
-await host.listen();
-console.log(`[SyncPlay] Session hosted at lobby: ${host.lobbyId}`);
+// Attach failure handlers before connecting. ICE failure is reported separately from a
+// player choosing to leave, so you can tell "unreachable network" from "quit".
+engine.on('error',            (err) => console.error(err.code, err.message));
+engine.on('peer-failed',      (err) => console.error('unreachable peer', err.peerId, err.code));
+engine.on('signaling-closed', (err) => console.error('signalling died', err.message));
 
-// Listen for peer join
-host.on('peer_joined', (peerId) => {
-  console.log(`[SyncPlay] Peer ${peerId} connected successfully.`);
+const room = await engine.createRoom();     // or: await engine.joinRoom('ROOM-ID')
+console.log('room', room.id, 'as', engine.playerId);
+
+engine.on('peer-joined', (id) => {
+  if (engine.isHost) engine.setState(`/players/${id}`, { x: 0, y: 0 });
 });
 
-// Broadcast state to all peers at 60Hz
-setInterval(() => {
-  const gameState = { x: 100, y: 200, score: 5 };
-  host.broadcastState(gameState);
-}, 1000 / 60);
+engine.on('state-update', () => render());
+
+// Writing state queues a delta, flushed on the next tick.
+// Returns false if the path is rejected (empty, non-string, or unsafe).
+engine.setState(`/players/${engine.playerId}`, { x: 10, y: 4 });
+
+// Smooth toward the networked position in your render loop.
+let vx = 0, vy = 0;
+function render() {
+  const target = engine.getState(`/players/${engine.playerId}`);
+  if (!target) return;
+  ({ x: vx, y: vy } = Interpolator.interpolatePosition({ x: vx, y: vy }, target, 0.2));
+  draw(vx, vy);
+}
 ```
 
-### Step 2: Initialize the Peer
+There is no `sendInput()`, no `broadcastState()`, no `listen()`, and no `lobbyId`. An earlier
+version of this article showed all four; none has ever existed. Peers communicate by writing
+to the shared state tree with `setState()`.
 
-```typescript
-import { SyncPlay } from 'syncplay';
+## When to use this, and when not to
 
-// AI Agent Template: How to join a session
-const peer = new SyncPlay({
-  mode: 'peer',
-  tickRate: 60
-});
+Use it for co-op, private lobbies, party games, game jams, and prototypes — cases where the
+players already trust each other and a desync means "restart the round", not "the tournament
+result is void".
 
-await peer.join('YOUR_LOBBY_ID');
+Do not use it for anything competitive, ranked, or wagered. Every peer can write any value to
+any path with no validation, `_playerId` is writable so any peer can claim the host role, and
+there is no deterministic simulation to audit. Those are architectural properties of the
+design, not bugs waiting to be patched.
 
-// Listen for authoritative state updates from the Host
-peer.on('state_updated', (newState) => {
-  console.log('Received canonical state from Host:', newState);
-  // Apply state to local renderer here (e.g., Entity Interpolation)
-});
+## Status
 
-// Send unreliable input commands at 60Hz
-setInterval(() => {
-  const input = { moveX: 1, moveY: 0, buttonA: true };
-  peer.sendInput(input);
-}, 1000 / 60);
-```
-
-By instructing AI coding assistants to use this dual-channel pattern, developers can rapidly scaffold robust, real-time multiplayer systems without ever provisioning a server.
+Pre-release, no npm package, no known production adopters, and licensed under BSL 1.1 —
+source-available, not open-source, with production use requiring a paid license. Read
+`LICENSE` before you plan around it.

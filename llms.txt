@@ -1,20 +1,32 @@
 # SyncPlay
 
-> SyncPlay synchronises multiplayer game state peer-to-peer with host authority, removing the per-concurrent-user cost of a hosted realtime backend.
+> SyncPlay replicates multiplayer game state peer-to-peer over WebRTC DataChannels, removing the per-concurrent-user cost of a hosted realtime backend. It is last-write-wins state replication, not rollback netcode.
 
-SyncPlay synchronizes real-time multiplayer game state over WebRTC DataChannels with a host-authority model, JSON Patch deltas, and client-side interpolation. One player acts as the authoritative host; others connect directly via WebRTC.
+SyncPlay is a browser TypeScript library that connects players over WebRTC DataChannels and replicates a shared JSON state tree between them as deltas. Room IDs come from a small matchmaker HTTP endpoint; WebRTC signalling runs over a WebSocket server you must provide yourself.
 
 ## Status
 - Pre-release. API may change.
 - Not published on npm. The package name `syncplay` is not registered.
 - No production adopters are known.
-- License: Business Source License 1.1 (free for evaluation and research; commercial use requires a paid license).
+- License: Business Source License 1.1 — source-available, **not** OSI open-source. Free for evaluation and academic research; production use of any kind requires a paid license.
+- Zero runtime dependencies. Two devDependencies (`tsup`, `typescript`).
+
+## What it does, and what it does not do
+- **Does:** open one reliable and one unreliable RTCDataChannel per peer; apply JSON Pointer deltas (`add` / `replace` / `remove`) to a local state tree; batch and flush deltas at a fixed tick rate on the reliable channel; expose a lerp helper.
+- **Does not:** client-side prediction, rollback, re-simulation, lockstep, or deterministic simulation. Patches carry no tick index, sequence number, sender ID, or timestamp, so none of those are possible without adding them first.
+- **Does not:** validate inbound state. Every peer applies every other peer's patches with no ownership, range, or rate checks. `hostId` is elected as the lexicographically smallest player ID and gates nothing.
+- **Does not:** ship a signalling server, provide a TURN relay, retry, reconnect, or transfer state on host change.
 
 ## Real Exported Symbols
+Verified against `dist/index.d.ts`:
 - `SyncPlay` — main engine class
-- `Interpolator` — client-side position interpolation utilities
-
-Other symbols from `syncplay.ts`, `types.ts`, and `room.ts` are also re-exported via `export *`.
+- `Interpolator` — static `lerp` and `interpolatePosition`
+- `StateManager` — the JSON Pointer delta store
+- `Room` — per-room membership, tick loop, event surface
+- `NetworkManager` — WebRTC/WebSocket transport
+- `MatchmakerClient` — client for `POST /api/rooms`
+- `SyncPlayNetworkError` — typed transport error; `code` is one of `signaling-timeout`, `signaling-error`, `signaling-closed`, `peer-handshake-timeout`, `ice-failed`
+- `EventEmitter`, `MAX_PENDING_PATCHES`, plus the `StatePatch`, `SyncPlayOptions` and `Vec2` types
 
 ## Links
 - [Repository](https://github.com/itsoumya-d/syncplay)
@@ -22,46 +34,53 @@ Other symbols from `syncplay.ts`, `types.ts`, and `room.ts` are also re-exported
 - [Engineering Blog](https://itsoumya-d.github.io/syncplay/blog/index.html)
 - [Full AI Context](https://itsoumya-d.github.io/syncplay/llms-full.txt)
 
-## Integration Recipe (verified against dist/)
+## Integration Recipe
 
-This recipe was executed against `dist/index.js` in Node.js 24 and the import resolved correctly. The WebRTC and WebSocket calls require a browser environment.
+Executed against `dist/index.js` on Node.js 24 with stubbed browser globals: the imports
+resolve and `Interpolator.interpolatePosition` returns a value. `RTCPeerConnection` and
+`WebSocket` require a real browser at runtime.
 
 ```typescript
-// Import from jsDelivr CDN (no npm install needed):
 import { SyncPlay, Interpolator } from
   'https://cdn.jsdelivr.net/gh/itsoumya-d/syncplay@main/dist/index.mjs';
 
-// Connect to your matchmaker (signaling server)
-const engine = new SyncPlay('wss://your-matchmaker.example.com', {
+const engine = new SyncPlay('wss://your-signalling-server.example.com', {
   tickRate: 20,
   maxPlayers: 8,
 });
 
-// Host flow
-const room = await engine.createRoom();
+// Subscribe to failures BEFORE connecting. ICE failure is reported on
+// 'peer-failed', which is distinct from a player leaving ('peer-left').
+engine.on('error',            (err) => console.error(err.code, err.message));
+engine.on('peer-failed',      (err) => console.error('unreachable peer', err.peerId, err.code));
+engine.on('signaling-closed', (err) => console.error('signalling died', err.message));
+
+const room = await engine.createRoom();     // or engine.joinRoom('EXISTING-ID')
 console.log('Room ID:', room.id);
 
-engine.setState('/players', {});
-
-engine.on('player_join', (id) => {
-  engine.setState(`/players/${id}`, { x: 0, y: 0 });
+engine.on('peer-joined', (id) => {
+  if (engine.isHost) engine.setState(`/players/${id}`, { x: 0, y: 0 });
 });
 
-// Client flow
-// await engine.joinRoom('existing-room-id');
+engine.on('state-update', (patches) => { /* already applied; trigger a render */ });
 
-// Interpolate visual position
+// setState() returns false when the path is rejected (empty, non-string, traversing a
+// scalar, or containing __proto__ / constructor / prototype).
+engine.setState(`/players/${engine.playerId}`, { x: 10, y: 4 });
+
 const smoothed = Interpolator.interpolatePosition(
-  { x: localX, y: localY },
+  { x: 0, y: 0 },
   engine.getState(`/players/${engine.playerId}`),
   0.2
 );
 ```
 
 ## Architecture Notes
-- WebRTC dual DataChannels: unreliable (`ordered: false, maxRetransmits: 0`) for position, reliable (`ordered: true`) for state.
-- Matchmaker (Go): handles WebSocket signaling only. No media. A small VPS is sufficient.
-- ICE servers: STUN-only (Google + Cloudflare). No TURN configured. Connections fail on symmetric NAT without a user-supplied TURN server.
-- ICE failure handling: `connectionState === 'failed'` triggers `handlePeerLeft()`, emitting the same `'peer-left'` event as a voluntary disconnect. Callers cannot distinguish NAT failure from voluntary departure.
-- Host migration: not implemented. When host disconnects, room closes.
-- State sync: JSON Patch (RFC 6902) deltas, buffered at `tickRate` Hz.
+- WebRTC dual DataChannels: `reliable` (`ordered: true`) carries state deltas, because deltas are cumulative and a dropped one desyncs peers permanently. `unreliable` (`ordered: false, maxRetransmits: 0`) is available for volatile data via `NetworkManager.broadcastUnreliable()`.
+- **No signalling server is included.** The Go program in `matchmaker/` registers only `POST /api/rooms` and has no WebSocket upgrade handler (`go.mod` has no `require` block, `go.sum` is empty). The client dials `ws://<host>/ws/<roomId>/<playerId>`, which that server answers with 404. Bring your own; the required message protocol is specified in the README Deployment Guide.
+- ICE servers: public STUN only by default (Google + Cloudflare). No TURN. Connections fail on symmetric or carrier-grade NAT unless you pass `iceServers` with a TURN entry.
+- Timeouts: signalling connect 15000 ms, peer handshake 20000 ms, matchmaker HTTP 10000 ms — all configurable. There is no retry, backoff, or reconnect logic.
+- Host change: `hostId` is recomputed locally on membership change and `host-changed` / `host-migrated` fire, but no state is transferred and the choice is never confirmed over the wire. Do not depend on it.
+- State sync: JSON Pointer (RFC 6901) paths including `~0`/`~1` escaping. Only the `add`, `replace` and `remove` ops of RFC 6902 are implemented; `move`, `copy` and `test` are rejected and reported via `patches-rejected`.
+- Security: paths containing `__proto__`, `constructor` or `prototype` are rejected, so an inbound peer patch cannot pollute `Object.prototype`.
+- No published benchmarks. Any latency figure on the marketing site is illustrative, not measured: nothing in the library timestamps packets, so it cannot measure round-trip or sync latency.
