@@ -5,9 +5,34 @@
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "LICENSE",
+    "README.md"
+  ],
+  "sideEffects": false,
   "scripts": {
     "build": "tsup",
-    "dev": "tsup --watch"
+    "dev": "tsup --watch",
+    "test": "node --test-force-exit --test tests/*.test.mjs",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/itsoumya-d/syncplay.git"
+  },
+  "homepage": "https://itsoumya-d.github.io/syncplay/",
+  "bugs": {
+    "url": "https://github.com/itsoumya-d/syncplay/issues"
   },
   "devDependencies": {
     "typescript": "^5.0.0",
