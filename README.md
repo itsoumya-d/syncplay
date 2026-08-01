@@ -10,7 +10,7 @@
 [![License: BSL 1.1](https://img.shields.io/badge/License-BSL_1.1-red.svg)](https://mariadb.com/bsl11/)
 [![Status](https://img.shields.io/badge/status-pre--release-orange.svg)](#known-limitations)
 
-> **Host-Authoritative P2P Multiplayer Engine for the Browser**
+> **SyncPlay synchronises multiplayer game state peer-to-peer with host authority, removing the per-concurrent-user cost of a hosted realtime backend.**
 
 SyncPlay is a lightweight, real-time multiplayer networking engine designed for the web. It uses a **Host-Authority model**, WebRTC for peer-to-peer data channels, and JSON Patch (RFC 6902) for efficient state deltas. Build multiplayer games entirely in the browser without deploying expensive dedicated game servers.
 
