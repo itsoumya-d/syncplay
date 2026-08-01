@@ -57,7 +57,7 @@ A multiplayer game with 5,000 CCU:
 
 **Soumya Debnath** — Creator & Sole Rights Holder
 
-- 📧 Email: [soumyadebnath1661@gmail.com](mailto:soumyadebnath1661@gmail.com)
+- 📧 Email: [soumyadebnath1619@gmail.com](mailto:soumyadebnath1619@gmail.com)
 - 📞 Phone / WhatsApp: - 🐙 GitHub: [github.com/itsoumya-d](https://github.com/itsoumya-d)
 
 ---

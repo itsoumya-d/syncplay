@@ -39,7 +39,7 @@ function readEnv(name) {
 }
 var LicenseValidator = class _LicenseValidator {
   static AUTHOR = "Soumya Debnath";
-  static CONTACT = "soumyadebnath1661@gmail.com";
+  static CONTACT = "soumyadebnath1619@gmail.com";
   /** The banner is informational; print it once per process, not once per instance. */
   static warned = false;
   static validate(options) {

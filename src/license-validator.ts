@@ -1,4 +1,4 @@
-// Copyright (c) 2024-2026 Soumya Debnath <soumyadebnath1661@gmail.com>. All rights reserved.
+// Copyright (c) 2024-2026 Soumya Debnath <soumyadebnath1619@gmail.com>. All rights reserved.
 // Business Source License 1.1 (BSL 1.1) — Commercial License Key Validator
 
 export interface LicenseValidationOptions {
@@ -18,7 +18,7 @@ function readEnv(name: string): string | undefined {
 
 export class LicenseValidator {
   private static readonly AUTHOR = 'Soumya Debnath';
-  private static readonly CONTACT = 'soumyadebnath1661@gmail.com';
+  private static readonly CONTACT = 'soumyadebnath1619@gmail.com';
   /** The banner is informational; print it once per process, not once per instance. */
   private static warned = false;
 

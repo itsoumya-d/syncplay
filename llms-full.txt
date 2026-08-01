@@ -8,7 +8,7 @@ SyncPlay connects browser peers over WebRTC DataChannels and replicates a shared
 - Pre-release. API may change without notice.
 - Not published on npm. The package name `syncplay` is not registered on npm.
 - No production adopters are known.
-- License: Business Source License 1.1 (BSL 1.1). Source-available, **not** OSI open-source. Change Date 2030-07-26, after which it becomes AGPLv3. Free for evaluation and academic research; production use of any kind requires a paid license (contact soumyadebnath1661@gmail.com).
+- License: Business Source License 1.1 (BSL 1.1). Source-available, **not** OSI open-source. Change Date 2030-07-26, after which it becomes AGPLv3. Free for evaluation and academic research; production use of any kind requires a paid license (contact soumyadebnath1619@gmail.com).
 - Zero runtime dependencies. Two devDependencies: `tsup`, `typescript`.
 - `npm run build`, `npm run typecheck` and `npm test` all pass on Node.js 24.
 
@@ -196,4 +196,4 @@ implemented. Only the changed path and value are transmitted, never the full tre
 - [Engineering Blog](https://itsoumya-d.github.io/syncplay/blog/index.html)
 - [llms.txt](https://itsoumya-d.github.io/syncplay/llms.txt)
 
-Contact: soumyadebnath1661@gmail.com
+Contact: soumyadebnath1619@gmail.com
