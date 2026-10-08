@@ -334,18 +334,25 @@ export class NetworkManager extends EventEmitter {
     if (!dc) return;
     try {
       if (dc.readyState !== 'open') return;
-      if (dc.bufferedAmount > 65536) {
-        let queue = this.sendQueues.get(dc);
+      let queue = this.sendQueues.get(dc);
+      // A previous backlog may remain even below the send cap: the browser only
+      // emits bufferedamountlow after crossing the lower 16384-byte threshold.
+      // New messages must join that backlog instead of overtaking older deltas.
+      if (dc.bufferedAmount > 65536 || (queue && queue.length > 0)) {
         if (!queue) {
           queue = [];
           this.sendQueues.set(dc, queue);
           dc.bufferedAmountLowThreshold = 16384;
           dc.addEventListener('bufferedamountlow', () => this.drainQueue(dc));
         }
+        // Capacity may have recovered without a low-water event. Try it before
+        // evicting a message from a full queue.
+        if (queue.length >= NetworkManager.MAX_QUEUED_MESSAGES) this.drainQueue(dc);
         if (queue.length >= NetworkManager.MAX_QUEUED_MESSAGES) {
-          queue.shift();   // drop oldest; this data is superseded by the next tick
+          queue.shift(); // Preserve the existing bounded, drop-oldest policy.
         }
         queue.push(data);
+        this.drainQueue(dc);
         return;
       }
       dc.send(data as any);
@@ -357,11 +364,18 @@ export class NetworkManager extends EventEmitter {
   private drainQueue(dc: RTCDataChannel) {
     const queue = this.sendQueues.get(dc);
     if (!queue) return;
-    while (queue.length > 0 && dc.bufferedAmount <= 65536) {
-      const item = queue.shift()!;
-      try { dc.send(item as any); } catch { break; }
+    while (queue.length > 0 && dc.readyState === 'open' && dc.bufferedAmount <= 65536) {
+      try {
+        dc.send(queue[0] as any);
+      } catch (err) {
+        // A temporarily full browser buffer can recover. Other failures (such
+        // as a TypeError for an oversized frame) must not wedge later messages.
+        if ((err as Error)?.name === 'OperationError') break;
+      }
+      queue.shift();
     }
-    if (queue.length === 0) this.sendQueues.delete(dc);
+    // Retain the empty queue until peer teardown so each channel installs only
+    // one drain listener, even across repeated congestion/recovery cycles.
   }
 
   broadcastReliable(data: ArrayBuffer | string) {

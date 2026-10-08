@@ -25,13 +25,24 @@ class FakeDataChannel {
     this.bufferedAmount = 0;
     this.bufferedAmountLowThreshold = 0;
     this.sent = [];
+    this.listeners = new Map();
     this.onmessage = this.onopen = this.onclose = null;
   }
-  addEventListener() {}
+  addEventListener(type, callback) {
+    if (!this.listeners.has(type)) this.listeners.set(type, new Set());
+    this.listeners.get(type).add(callback);
+  }
   send(d) { if (this.readyState !== 'open') throw new Error('InvalidStateError'); this.sent.push(d); }
   close() { this.readyState = 'closed'; }
   _open() { this.readyState = 'open'; if (this.onopen) this.onopen(); }
   _deliver(data) { if (this.onmessage) this.onmessage({ data }); }
+  _setBufferedAmount(amount) {
+    const previous = this.bufferedAmount;
+    this.bufferedAmount = amount;
+    if (previous > this.bufferedAmountLowThreshold && amount <= this.bufferedAmountLowThreshold) {
+      for (const callback of this.listeners.get('bufferedamountlow') ?? []) callback();
+    }
+  }
 }
 
 class FakePC {
@@ -331,7 +342,10 @@ describe('Connection failure surfaces a typed error', () => {
     assert.doesNotThrow(() => s.pc.onicecandidate({ candidate: { candidate: 'candidate:1 1 udp' } }));
   });
 
-  test('createRoom() rejects when the matchmaker is unreachable', async () => {
+  test('createRoom() rejects when the matchmaker is unreachable', async (t) => {
+    t.mock.method(globalThis, 'fetch', async () => {
+      throw new TypeError('fetch failed');
+    });
     const sp = new SyncPlay('https://unreachable.invalid', FAST);
     await assert.rejects(sp.createRoom(), /Failed to create room/);
   });
@@ -419,6 +433,154 @@ describe('Game loop and transport choice', () => {
     s.room.on('patches-dropped', d => reasons.push(d.reason));
     for (let i = 0; i < 12000; i++) s.engine.setState('/x', i);
     assert.ok(reasons.includes('game-loop-not-started'), 'overflow must be diagnosable');
+  });
+});
+
+describe('Backpressure ordering', () => {
+  async function transport(t) {
+    const network = new NetworkManager(undefined, 400, 400);
+    t.after(() => network.disconnect());
+    const connecting = network.connect('http://matchmaker.test', 'FIFO', 'local');
+    const ws = bus.sockets.at(-1);
+    ws._open();
+    await connecting;
+    ws._deliver({ type: 'peer-joined', peerId: 'remote' });
+    await wait(0);
+    const pc = bus.pcs.at(-1);
+    const [reliable, unreliable] = pc.channels;
+    reliable._open();
+    unreliable._open();
+    return { network, reliable, unreliable };
+  }
+
+  test('new state patches cannot overtake a backlog above the low-water threshold', async (t) => {
+    const { network, reliable } = await transport(t);
+    const frame = value => JSON.stringify({
+      type: 'state-patch', patches: [{ op: 'replace', path: '/score', value }],
+    });
+    reliable._setBufferedAmount(70000);
+    network.broadcastReliable(frame(1));
+    assert.deepEqual(reliable.sent, []);
+
+    // No bufferedamountlow event fires here: the amount is below the send cap
+    // but still above the low-water threshold of 16384 bytes.
+    reliable._setBufferedAmount(32768);
+    network.sendTo('remote', frame(2), true);
+    reliable._setBufferedAmount(0);
+
+    const remoteState = new StateManager();
+    for (const message of reliable.sent) {
+      for (const patch of JSON.parse(message).patches) remoteState.applyPatch(patch);
+    }
+    assert.equal(remoteState.getState('/score'), 2, 'a delayed older delta must not roll state back');
+    assert.deepEqual(reliable.sent, [frame(1), frame(2)]);
+  });
+
+  test('partial drains and newly queued sends retain FIFO order', async (t) => {
+    const { network, reliable } = await transport(t);
+    const send = reliable.send.bind(reliable);
+    t.mock.method(reliable, 'send', data => {
+      send(data);
+      reliable.bufferedAmount = 70000;
+    });
+    reliable._setBufferedAmount(70000);
+    network.broadcastReliable('first');
+    network.broadcastReliable('second');
+    reliable._setBufferedAmount(0);
+    assert.deepEqual(reliable.sent, ['first']);
+
+    reliable._setBufferedAmount(32768);
+    network.broadcastReliable('third');
+    reliable._setBufferedAmount(0);
+    assert.deepEqual(reliable.sent, ['first', 'second', 'third']);
+  });
+
+  test('a temporarily full browser buffer retains queued sends ahead of later messages', async (t) => {
+    const { network, reliable } = await transport(t);
+    reliable._setBufferedAmount(70000);
+    network.broadcastReliable('first');
+    const send = reliable.send.bind(reliable);
+    let fail = true;
+    t.mock.method(reliable, 'send', data => {
+      if (fail) { fail = false; throw new DOMException('buffer full', 'OperationError'); }
+      send(data);
+    });
+    reliable._setBufferedAmount(0);
+    assert.deepEqual(reliable.sent, []);
+    network.broadcastReliable('second');
+    assert.deepEqual(reliable.sent, ['first', 'second']);
+  });
+
+  test('a permanently invalid queued frame does not block later valid frames', async (t) => {
+    const { network, reliable } = await transport(t);
+    reliable._setBufferedAmount(70000);
+    network.broadcastReliable('oversized');
+    network.broadcastReliable('valid');
+    const send = reliable.send.bind(reliable);
+    t.mock.method(reliable, 'send', data => {
+      if (data === 'oversized') throw new TypeError('message exceeds maxMessageSize');
+      send(data);
+    });
+    reliable._setBufferedAmount(0);
+    assert.deepEqual(reliable.sent, ['valid']);
+    network.broadcastReliable('later');
+    assert.deepEqual(reliable.sent, ['valid', 'later']);
+  });
+
+  test('the existing drop-oldest queue limit remains bounded', async (t) => {
+    const { network, reliable } = await transport(t);
+    reliable._setBufferedAmount(70000);
+    const count = NetworkManager.MAX_QUEUED_MESSAGES + 2;
+    for (let i = 0; i < count; i++) network.broadcastReliable(String(i));
+    reliable._setBufferedAmount(0);
+    assert.deepEqual(reliable.sent, Array.from({ length: count - 2 }, (_, i) => String(i + 2)));
+  });
+
+  test('a full queue drains before evicting when browser capacity has recovered', async (t) => {
+    const { network, reliable } = await transport(t);
+    reliable._setBufferedAmount(70000);
+    for (let i = 0; i < NetworkManager.MAX_QUEUED_MESSAGES; i++) network.broadcastReliable(String(i));
+    reliable._setBufferedAmount(32768);
+    network.broadcastReliable('latest');
+    reliable._setBufferedAmount(0);
+    assert.deepEqual(reliable.sent, [
+      ...Array.from({ length: NetworkManager.MAX_QUEUED_MESSAGES }, (_, i) => String(i)), 'latest',
+    ]);
+  });
+
+  test('channel queues are independent and uncongested sends stay immediate', async (t) => {
+    const { network, reliable, unreliable } = await transport(t);
+    network.broadcastReliable('immediate');
+    assert.deepEqual(reliable.sent, ['immediate']);
+    reliable._setBufferedAmount(70000);
+    network.broadcastReliable('reliable-old');
+    network.broadcastUnreliable('unreliable-immediate');
+    assert.deepEqual(unreliable.sent, ['unreliable-immediate']);
+    unreliable._setBufferedAmount(70000);
+    network.sendTo('remote', 'unreliable-old', false);
+    unreliable._setBufferedAmount(32768);
+    network.broadcastUnreliable('unreliable-new');
+    unreliable._setBufferedAmount(0);
+    assert.deepEqual(unreliable.sent, ['unreliable-immediate', 'unreliable-old', 'unreliable-new']);
+    assert.deepEqual(reliable.sent, ['immediate']);
+    reliable._setBufferedAmount(0);
+    assert.deepEqual(reliable.sent, ['immediate', 'reliable-old']);
+  });
+
+  test('repeated congestion reuses the drain listener and disconnect discards queued sends', async (t) => {
+    const { network, reliable } = await transport(t);
+    for (let i = 0; i < 3; i++) {
+      reliable._setBufferedAmount(70000);
+      network.broadcastReliable(String(i));
+      reliable._setBufferedAmount(0);
+    }
+    assert.deepEqual(reliable.sent, ['0', '1', '2']);
+    assert.equal(reliable.listeners.get('bufferedamountlow').size, 1);
+    reliable._setBufferedAmount(70000);
+    network.broadcastReliable('discard-on-disconnect');
+    network.disconnect();
+    reliable._setBufferedAmount(0);
+    assert.deepEqual(reliable.sent, ['0', '1', '2']);
   });
 });
 
