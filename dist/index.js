@@ -645,18 +645,20 @@ var NetworkManager = class _NetworkManager extends EventEmitter {
     if (!dc) return;
     try {
       if (dc.readyState !== "open") return;
-      if (dc.bufferedAmount > 65536) {
-        let queue = this.sendQueues.get(dc);
+      let queue = this.sendQueues.get(dc);
+      if (dc.bufferedAmount > 65536 || queue && queue.length > 0) {
         if (!queue) {
           queue = [];
           this.sendQueues.set(dc, queue);
           dc.bufferedAmountLowThreshold = 16384;
           dc.addEventListener("bufferedamountlow", () => this.drainQueue(dc));
         }
+        if (queue.length >= _NetworkManager.MAX_QUEUED_MESSAGES) this.drainQueue(dc);
         if (queue.length >= _NetworkManager.MAX_QUEUED_MESSAGES) {
           queue.shift();
         }
         queue.push(data);
+        this.drainQueue(dc);
         return;
       }
       dc.send(data);
@@ -666,15 +668,14 @@ var NetworkManager = class _NetworkManager extends EventEmitter {
   drainQueue(dc) {
     const queue = this.sendQueues.get(dc);
     if (!queue) return;
-    while (queue.length > 0 && dc.bufferedAmount <= 65536) {
-      const item = queue.shift();
+    while (queue.length > 0 && dc.readyState === "open" && dc.bufferedAmount <= 65536) {
       try {
-        dc.send(item);
-      } catch {
-        break;
+        dc.send(queue[0]);
+      } catch (err) {
+        if (err?.name === "OperationError") break;
       }
+      queue.shift();
     }
-    if (queue.length === 0) this.sendQueues.delete(dc);
   }
   broadcastReliable(data) {
     for (const [, peer] of this.peers.entries()) this.safeSend(peer.reliable, data);
